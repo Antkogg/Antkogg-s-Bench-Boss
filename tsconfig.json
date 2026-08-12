@@ -3,6 +3,11 @@
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "luxon": ["./tooling/node_modules/@types/luxon/index.d.mts"],
+      "vitest": ["./tooling/node_modules/vitest/dist/index.d.ts"]
+    },
+    "typeRoots": ["./tooling/node_modules/@types", "./node_modules/@types"],
     "lib": ["ES2023"],
     "strict": true,
     "noUncheckedIndexedAccess": true,

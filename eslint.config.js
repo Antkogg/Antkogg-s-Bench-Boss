@@ -1,7 +1,10 @@
-import js from '@eslint/js';
-import prettier from 'eslint-config-prettier';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
+import { createRequire } from 'node:module';
+
+const require = createRequire(new URL('./tooling/package.json', import.meta.url));
+const js = require('@eslint/js');
+const prettier = require('eslint-config-prettier');
+const globals = require('globals');
+const tseslint = require('typescript-eslint');
 
 export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'src/generated/**', 'eslint.config.js'] },
