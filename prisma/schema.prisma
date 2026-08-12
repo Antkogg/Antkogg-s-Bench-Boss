@@ -1,0 +1,309 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SignupPosition {
+  LW
+  C
+  RW_F
+  LD
+  RD
+  G
+}
+
+enum PositionGroup {
+  FORWARD
+  DEFENSE
+  GOALIE
+}
+
+enum ScoutingPosition {
+  LW
+  C
+  RW
+  LD
+  RD
+  G
+}
+
+enum SessionFormat {
+  ONE_SIDE
+  PRIVATE_6V6
+}
+
+enum SignupMode {
+  OPEN_SIGNUP
+  AVAILABILITY
+}
+
+enum SessionStatus {
+  OPEN
+  LOCKED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum LineupTeam {
+  TEAM_1
+  TEAM_2
+}
+
+enum WaitlistStatus {
+  WAITING
+  OFFERED
+  DECLINED
+  PROMOTED
+  EXPIRED
+  LEFT
+}
+
+enum AttendanceStatus {
+  PLAYED
+  NO_SHOW
+  EXCUSED
+  CANCELLED
+}
+
+enum InternalPlayerStatus {
+  UNSCOUTED
+  SCOUTED
+  WATCH
+  INTERESTED
+  SHORTLIST
+  PRIORITY
+  PASS
+}
+
+enum NotificationType {
+  SIGNUP_CONFIRMATION
+  POSITION_CHANGED
+  REMOVED
+  WAITLIST_JOINED
+  WAITLIST_PROMOTION
+  GAME_REMINDER
+  LINEUP_LOCKED
+  GAME_CANCELLED
+}
+
+model GuildConfig {
+  id                    String        @id @default(cuid())
+  guildId               String        @unique
+  timezone              String        @default("America/New_York")
+  managementRoleId      String?
+  registeredRoleId      String?
+  forwardRoleId         String?
+  defenseRoleId         String?
+  goalieRoleId          String?
+  positionRoleIds       Json?
+  scoutingChannelId     String?
+  managementChannelId   String?
+  defaultFormat         SessionFormat @default(ONE_SIDE)
+  defaultDurationMinutes Int          @default(60)
+  reminderMinutes       Int[]         @default([60, 15])
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  players  Player[]
+  sessions ScoutingSession[]
+  audits   AuditLog[]
+}
+
+model Player {
+  id                 String               @id @default(cuid())
+  guildConfigId      String
+  discordUserId      String
+  discordDisplayName String
+  discordAvatarUrl   String?
+  lgUsername         String
+  lgUsernameNormalized String
+  signupPosition     SignupPosition
+  positionGroup      PositionGroup
+  eaTag              String
+  eaTagNormalized    String
+  registered         Boolean              @default(true)
+  internalStatus     InternalPlayerStatus @default(UNSCOUTED)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  guildConfig  GuildConfig          @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  assignments  ScoutingAssignment[]
+  waitlists    WaitlistEntry[]
+  attendance   Attendance[]
+  evaluations  Evaluation[]
+  notes        PlayerNote[]
+  availability Availability[]
+
+  @@unique([guildConfigId, discordUserId])
+  @@unique([guildConfigId, eaTagNormalized])
+  @@index([guildConfigId, lgUsernameNormalized])
+}
+
+model ScoutingSession {
+  id               String         @id @default(cuid())
+  guildConfigId    String
+  startsAt         DateTime
+  durationMinutes  Int
+  format           SessionFormat
+  signupMode       SignupMode     @default(OPEN_SIGNUP)
+  status           SessionStatus  @default(OPEN)
+  signupsOpen      Boolean        @default(true)
+  note             String?
+  channelId        String?
+  messageId        String?
+  createdByDiscordId String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  guildConfig  GuildConfig          @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  assignments  ScoutingAssignment[]
+  waitlists    WaitlistEntry[]
+  attendance   Attendance[]
+  availability Availability[]
+  reminders    ReminderDispatch[]
+
+  @@index([guildConfigId, startsAt])
+  @@index([status, startsAt])
+}
+
+model ScoutingAssignment {
+  id                 String            @id @default(cuid())
+  sessionId          String
+  playerId           String
+  team               LineupTeam        @default(TEAM_1)
+  position           ScoutingPosition
+  slotIndex          Int               @default(0)
+  eligibilityOverride Boolean          @default(false)
+  conflictOverride   Boolean           @default(false)
+  assignedByDiscordId String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+  @@unique([sessionId, team, position, slotIndex])
+  @@index([playerId, createdAt])
+}
+
+model WaitlistEntry {
+  id                String         @id @default(cuid())
+  sessionId         String
+  playerId          String
+  positionGroup     PositionGroup
+  preferredPosition ScoutingPosition?
+  queueOrder        Int
+  status            WaitlistStatus @default(WAITING)
+  offeredPosition   ScoutingPosition?
+  offerToken        String?        @unique
+  offerExpiresAt    DateTime?
+  joinedAt          DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+  @@unique([sessionId, positionGroup, queueOrder])
+  @@index([sessionId, positionGroup, status, queueOrder])
+}
+
+model Availability {
+  id        String   @id @default(cuid())
+  sessionId String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  sessionId   String
+  playerId    String
+  status      AttendanceStatus
+  recordedBy  String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+}
+
+model Evaluation {
+  id            String   @id @default(cuid())
+  playerId      String
+  evaluatorDiscordId String
+  overall       Int
+  offense       Int
+  defense       Int
+  hockeyIq      Int
+  puckMovement  Int
+  communication Int
+  privateNote   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, createdAt])
+}
+
+model PlayerNote {
+  id              String   @id @default(cuid())
+  playerId        String
+  authorDiscordId String
+  body            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, createdAt])
+}
+
+model ReminderDispatch {
+  id              String           @id @default(cuid())
+  sessionId       String
+  playerId        String
+  notificationType NotificationType
+  scheduledFor    DateTime
+  sentAt          DateTime?
+  failedAt        DateTime?
+  createdAt       DateTime         @default(now())
+
+  session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId, notificationType, scheduledFor])
+  @@index([sentAt, failedAt, scheduledFor])
+}
+
+model AuditLog {
+  id               String   @id @default(cuid())
+  guildConfigId    String
+  actorDiscordId   String
+  action           String
+  targetType       String
+  targetId         String
+  details          Json?
+  createdAt        DateTime @default(now())
+
+  guildConfig GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+
+  @@index([guildConfigId, createdAt])
+  @@index([targetType, targetId])
+}
