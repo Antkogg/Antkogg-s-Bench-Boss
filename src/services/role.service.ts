@@ -21,13 +21,13 @@ export class RoleService {
       !Array.isArray(config.positionRoleIds)
         ? (config.positionRoleIds as Record<string, unknown>)
         : {};
-    const signupKey = player.signupPosition === 'RW_F' ? 'RW' : player.signupPosition;
-    const desiredPositionRole =
-      typeof positionRoles[signupKey] === 'string' ? positionRoles[signupKey] : null;
+    const desiredPositionRoles = player.signupPositions
+      .map((pos) => (typeof positionRoles[pos] === 'string' ? (positionRoles[pos] as string) : null))
+      .filter((id): id is string => Boolean(id));
     const configuredPositionRoles = Object.values(positionRoles).filter(
       (id): id is string => typeof id === 'string',
     );
-    const desired = [config.registeredRoleId, desiredGroupRole, desiredPositionRole].filter(
+    const desired = [config.registeredRoleId, desiredGroupRole, ...desiredPositionRoles].filter(
       (id): id is string => Boolean(id),
     );
     const remove = configuredGroupRoles.filter(
@@ -37,7 +37,7 @@ export class RoleService {
       const rolesToRemove = [
         ...remove,
         ...configuredPositionRoles.filter(
-          (id) => id !== desiredPositionRole && member.roles.cache.has(id),
+          (id) => !desiredPositionRoles.includes(id) && member.roles.cache.has(id),
         ),
       ];
       if (rolesToRemove.length)

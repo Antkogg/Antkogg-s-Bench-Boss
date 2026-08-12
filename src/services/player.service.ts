@@ -3,7 +3,7 @@ import type {
   PrismaClient,
   SignupPosition,
 } from '../generated/prisma/client.js';
-import { groupForSignupPosition } from '../domain/positions.js';
+import { groupForSignupPositions } from '../domain/positions.js';
 import { AppError } from '../utils/errors.js';
 import { cleanDisplayValue, normalizeIdentity } from '../utils/normalize.js';
 
@@ -14,7 +14,7 @@ export interface RegisterPlayerInput {
   discordAvatarUrl?: string | null;
   lgUsername: string;
   eaTag: string;
-  signupPosition: SignupPosition;
+  signupPositions: SignupPosition[];
 }
 
 export class PlayerService {
@@ -60,8 +60,8 @@ export class PlayerService {
           lgUsernameNormalized: normalizeIdentity(lgUsername),
           eaTag,
           eaTagNormalized: normalizeIdentity(eaTag),
-          signupPosition: input.signupPosition,
-          positionGroup: groupForSignupPosition(input.signupPosition),
+          signupPositions: input.signupPositions,
+          positionGroup: groupForSignupPositions(input.signupPositions),
           registered: true,
         },
         create: {
@@ -73,8 +73,8 @@ export class PlayerService {
           lgUsernameNormalized: normalizeIdentity(lgUsername),
           eaTag,
           eaTagNormalized: normalizeIdentity(eaTag),
-          signupPosition: input.signupPosition,
-          positionGroup: groupForSignupPosition(input.signupPosition),
+          signupPositions: input.signupPositions,
+          positionGroup: groupForSignupPositions(input.signupPositions),
         },
       });
     } catch (error) {

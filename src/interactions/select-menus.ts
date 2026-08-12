@@ -6,6 +6,7 @@ import { renderSuccess } from '../renderers/design.js';
 import type { InternalPlayerStatus } from '../generated/prisma/enums.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { showManagementModal } from './modals.js';
+import { signupPositionLabel } from '../domain/positions.js';
 
 export async function handleSelectMenu(
   interaction: StringSelectMenuInteraction,
@@ -120,7 +121,7 @@ export async function handleSelectMenu(
             ? shortlist
                 .map(
                   (player) =>
-                    `**${player.internalStatus}** • \`${player.eaTag}\` • ${player.signupPosition}`,
+                    `**${player.internalStatus}** • \`${player.eaTag}\` • ${signupPositionLabel(player.signupPositions)}`,
                 )
                 .join('\n')
             : 'No players are shortlisted yet.',

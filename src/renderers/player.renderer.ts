@@ -54,7 +54,7 @@ export function renderPlayerProfile(player: ProfilePlayer) {
         .addFields(
           { name: 'EA TAG', value: `\`${player.eaTag}\``, inline: true },
           { name: 'LG USERNAME', value: player.lgUsername, inline: true },
-          { name: 'LG POSITION', value: signupPositionLabel(player.signupPosition), inline: true },
+          { name: 'LG POSITION', value: signupPositionLabel(player.signupPositions), inline: true },
           {
             name: 'ELIGIBLE',
             value: eligiblePositions(player.positionGroup).join('  •  '),

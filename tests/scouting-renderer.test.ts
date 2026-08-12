@@ -68,7 +68,7 @@ function assignment(
       discordAvatarUrl: null,
       lgUsername: eaTag,
       lgUsernameNormalized: eaTag.toLowerCase(),
-      signupPosition: position === 'G' ? 'G' : position === 'LD' || position === 'RD' ? 'LD' : 'C',
+      signupPositions: position === 'G' ? ['G'] : position === 'LD' || position === 'RD' ? ['LD', 'RD'] : ['LW', 'C', 'RW'],
       positionGroup:
         position === 'G'
           ? 'GOALIE'

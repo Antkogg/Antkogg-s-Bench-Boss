@@ -4,20 +4,22 @@ import type {
   ScoutingPosition,
   SignupPosition,
 } from '../src/generated/prisma/enums.js';
-import { eligiblePositions, groupForSignupPosition, isEligible } from '../src/domain/positions.js';
+import { eligiblePositions, groupForSignupPositions, isEligible } from '../src/domain/positions.js';
 
 describe('position eligibility', () => {
   const cases: Array<[SignupPosition, PositionGroup, readonly ScoutingPosition[]]> = [
     ['LW', 'FORWARD', ['LW', 'C', 'RW']],
     ['C', 'FORWARD', ['LW', 'C', 'RW']],
-    ['RW_F', 'FORWARD', ['LW', 'C', 'RW']],
+    ['RW', 'FORWARD', ['LW', 'C', 'RW']],
     ['LD', 'DEFENSE', ['LD', 'RD']],
     ['RD', 'DEFENSE', ['LD', 'RD']],
     ['G', 'GOALIE', ['G']],
   ];
 
   it.each(cases)('%s maps to %s and its complete eligible set', (signup, group, positions) => {
-    expect(groupForSignupPosition(signup)).toBe(group);
+    // For tests with single positions, wrap in array since groupForSignupPositions takes an array now
+    const signupArray = [signup];
+    expect(groupForSignupPositions(signupArray)).toBe(group);
     expect(eligiblePositions(group)).toEqual(positions);
   });
 

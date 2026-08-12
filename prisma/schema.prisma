@@ -13,7 +13,7 @@ datasource db {
 enum SignupPosition {
   LW
   C
-  RW_F
+  RW
   LD
   RD
   G
@@ -125,10 +125,10 @@ model Player {
   discordAvatarUrl   String?
   lgUsername         String
   lgUsernameNormalized String
-  signupPosition     SignupPosition
-  positionGroup      PositionGroup
   eaTag              String
   eaTagNormalized    String
+  signupPositions    SignupPosition[]
+  positionGroup      PositionGroup
   registered         Boolean              @default(true)
   internalStatus     InternalPlayerStatus @default(UNSCOUTED)
   createdAt          DateTime              @default(now())

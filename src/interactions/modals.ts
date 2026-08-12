@@ -40,7 +40,7 @@ export async function showRegistrationModal(interaction: ButtonInteraction): Pro
       .addComponents(
         textInput('lgUsername', 'LG username', 'Your exact Leaguegaming username', 32),
         textInput('eaTag', 'Exact EA Tag', 'Capitalization and spaces matter', 32),
-        textInput('position', 'LG signup position', 'LW, C, RW/F, LD, RD, or G', 4),
+        textInput('position', 'LG signup positions', 'e.g. LW, C or LD, RD', 20),
       ),
   );
 }
@@ -51,14 +51,28 @@ export async function handleRegistrationModal(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Register inside the server.');
-  const rawPosition = interaction.fields
+  const rawPositions = interaction.fields
     .getTextInputValue('position')
-    .trim()
     .toUpperCase()
-    .replace('/', '_');
-  if (!['LW', 'C', 'RW_F', 'LD', 'RD', 'G'].includes(rawPosition)) {
-    throw new AppError('INVALID_INPUT', 'LG position must be LW, C, RW/F, LD, RD, or G.');
+    .split(',')
+    .map((p) => p.trim().replace('RW/F', 'RW').replace('RW_F', 'RW'));
+
+  const validPositions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
+  const signupPositions = rawPositions as SignupPosition[];
+
+  for (const pos of signupPositions) {
+    if (!validPositions.includes(pos)) {
+      throw new AppError('INVALID_INPUT', 'LG positions must be LW, C, RW, LD, RD, or G (separated by commas).');
+    }
   }
+
+  if (signupPositions.length === 0) {
+    throw new AppError('INVALID_INPUT', 'You must provide at least one position.');
+  }
+
+  // This will throw if they mixed groups (e.g., Forward and Defense)
+  const { groupForSignupPositions } = await import('../domain/positions.js');
+  groupForSignupPositions(signupPositions);
   await interaction.deferReply({ ephemeral: true });
   const member = await interaction.guild.members.fetch(interaction.user.id);
   const player = await context.players.register({
@@ -68,7 +82,7 @@ export async function handleRegistrationModal(
     discordAvatarUrl: interaction.user.displayAvatarURL(),
     lgUsername: interaction.fields.getTextInputValue('lgUsername'),
     eaTag: interaction.fields.getTextInputValue('eaTag'),
-    signupPosition: rawPosition as SignupPosition,
+    signupPositions,
   });
   const config = await context.config.ensure(interaction.guildId);
   await context.roles.sync(member, player, config);
