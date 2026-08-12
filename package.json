@@ -8,22 +8,22 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev:install": "npm install --prefix tooling",
-    "dev": "node tooling/node_modules/tsx/dist/cli.mjs watch src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "build": "node tooling/node_modules/prisma/build/index.js generate && node tooling/node_modules/typescript/bin/tsc -p tsconfig.build.json",
-    "typecheck": "node tooling/node_modules/prisma/build/index.js generate && node tooling/node_modules/typescript/bin/tsc --noEmit",
-    "lint": "node tooling/node_modules/eslint/bin/eslint.js .",
-    "lint:fix": "node tooling/node_modules/eslint/bin/eslint.js . --fix",
-    "format": "node tooling/node_modules/prettier/bin/prettier.cjs --write .",
-    "format:check": "node tooling/node_modules/prettier/bin/prettier.cjs --check .",
-    "test": "node tooling/node_modules/vitest/vitest.mjs run",
-    "test:watch": "node tooling/node_modules/vitest/vitest.mjs",
-    "commands:register": "node tooling/node_modules/tsx/dist/cli.mjs src/bot/register-commands.ts",
-    "db:generate": "node tooling/node_modules/prisma/build/index.js generate",
-    "db:migrate": "node tooling/node_modules/prisma/build/index.js migrate dev",
-    "db:deploy": "node tooling/node_modules/prisma/build/index.js migrate deploy",
-    "db:seed": "node tooling/node_modules/prisma/build/index.js db seed"
+    "install:production": "npm ci --omit=dev --omit=optional --legacy-peer-deps --ignore-scripts --no-fund --no-audit",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "commands:register": "tsx src/bot/register-commands.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
@@ -31,8 +31,21 @@
     "discord.js": "^14.27.0",
     "dotenv": "^17.2.2",
     "luxon": "^3.7.2",
-    "pg": "^8.16.3",
     "pino": "^9.9.4",
     "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@types/luxon": "^3.7.4",
+    "@types/node": "^24.3.0",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "prisma": "^7.9.1",
+    "tsx": "^4.20.5",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.41.0",
+    "vitest": "^4.1.10"
   }
 }

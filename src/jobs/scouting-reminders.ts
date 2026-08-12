@@ -4,7 +4,8 @@ import type { ScoutingService } from '../services/scouting.service.js';
 import { logger } from '../utils/logger.js';
 
 export class ScoutingReminderJob {
-  private timer?: NodeJS.Timeout;
+  private timer: NodeJS.Timeout | undefined;
+  private running = false;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -13,12 +14,29 @@ export class ScoutingReminderJob {
   ) {}
 
   start(): void {
-    this.timer = setInterval(() => void this.tick(), 60_000);
-    void this.tick();
+    if (this.timer) return;
+    this.timer = setInterval(() => void this.runOnce(), 60_000);
+    void this.runOnce();
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+  }
+
+  private async runOnce(): Promise<void> {
+    if (this.running) {
+      logger.warn('skipping reminder sweep because the previous sweep is still running');
+      return;
+    }
+    this.running = true;
+    try {
+      await this.tick();
+    } catch (error) {
+      logger.error({ error }, 'reminder sweep failed');
+    } finally {
+      this.running = false;
+    }
   }
 
   async tick(now = new Date()): Promise<void> {

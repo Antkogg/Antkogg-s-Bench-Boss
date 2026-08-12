@@ -4,18 +4,38 @@ export class ScoutingReminderJob {
     scouting;
     notifications;
     timer;
+    running = false;
     constructor(prisma, scouting, notifications) {
         this.prisma = prisma;
         this.scouting = scouting;
         this.notifications = notifications;
     }
     start() {
-        this.timer = setInterval(() => void this.tick(), 60_000);
-        void this.tick();
+        if (this.timer)
+            return;
+        this.timer = setInterval(() => void this.runOnce(), 60_000);
+        void this.runOnce();
     }
     stop() {
         if (this.timer)
             clearInterval(this.timer);
+        this.timer = undefined;
+    }
+    async runOnce() {
+        if (this.running) {
+            logger.warn('skipping reminder sweep because the previous sweep is still running');
+            return;
+        }
+        this.running = true;
+        try {
+            await this.tick();
+        }
+        catch (error) {
+            logger.error({ error }, 'reminder sweep failed');
+        }
+        finally {
+            this.running = false;
+        }
     }
     async tick(now = new Date()) {
         const nextOfferIds = await this.scouting.expireWaitlistOffers(now);

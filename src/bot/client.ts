@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import { Client, GatewayIntentBits, Options, Partials } from 'discord.js';
 import type { AppEnv } from '../config/env.js';
 import { getPrisma } from '../database/client.js';
 import { AttendanceService } from '../services/attendance.service.js';
@@ -29,6 +29,23 @@ export function createBenchBossApp(env: AppEnv): BenchBossApp {
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.DirectMessages,
     ],
+    makeCache: Options.cacheWithLimits({
+      ...Options.DefaultMakeCacheSettings,
+      GuildMemberManager: {
+        maxSize: 500,
+        keepOverLimit: (member) =>
+          member.id === member.client.user?.id || member.id === member.guild.ownerId,
+      },
+      MessageManager: 25,
+      ReactionManager: 0,
+      ReactionUserManager: 0,
+      UserManager: 500,
+      VoiceStateManager: 0,
+    }),
+    sweepers: {
+      ...Options.DefaultSweeperSettings,
+      messages: { interval: 300, lifetime: 600 },
+    },
     partials: [Partials.Channel],
   });
   const prisma = getPrisma(env.DATABASE_URL);

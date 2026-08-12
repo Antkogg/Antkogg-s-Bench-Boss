@@ -4,7 +4,9 @@ let client;
 export function getPrisma(databaseUrl = process.env.DATABASE_URL) {
     if (!databaseUrl)
         throw new Error('DATABASE_URL is required before creating the database client.');
-    client ??= new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
+    client ??= new PrismaClient({
+        adapter: new PrismaPg({ connectionString: databaseUrl, max: 5 }),
+    });
     return client;
 }
 export async function disconnectPrisma() {

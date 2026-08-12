@@ -146,7 +146,6 @@ Prisma 7 uses the official PostgreSQL driver adapter at runtime. The included mi
 
 ```bash
 npm install
-npm run dev:install
 npm run db:deploy
 npm run commands:register
 npm run dev
@@ -165,7 +164,6 @@ Use `npm run db:seed` to create a development-only fake scouting pool, partial O
 
 ```bash
 npm ci
-npm run dev:install
 npm run db:deploy
 npm run build
 npm run commands:register
@@ -174,7 +172,20 @@ NODE_ENV=production npm start
 
 Run one bot process for the current reminder scheduler. Use a supervised process or container with graceful SIGINT/SIGTERM delivery. Apply database migrations before replacing the running process.
 
-The build and test toolchain is isolated under `tooling/` so low-memory hosts only install runtime dependencies at the project root. Bot-Hosting deployments use the committed `dist/` output and do not run `npm run dev:install` or build on the server.
+For a 256 MB prebuilt Bot-Hosting deployment, use the committed `dist/` output. The server only needs to run:
+
+```bash
+npm ci --omit=dev --omit=optional --legacy-peer-deps --ignore-scripts --no-fund --no-audit
+node dist/index.js
+```
+
+Do not build, run Prisma CLI commands, or install development dependencies on the hosting container. Apply migrations and register commands from a development machine before deploying.
+
+On a 256 MB container, bound npm's temporary heap during installation:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=128 npm ci --omit=dev --omit=optional --legacy-peer-deps --ignore-scripts --no-fund --no-audit
+```
 
 ## Validation
 
