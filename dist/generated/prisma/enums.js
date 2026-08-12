@@ -10,7 +10,7 @@
 export const SignupPosition = {
     LW: 'LW',
     C: 'C',
-    RW_F: 'RW_F',
+    RW: 'RW',
     LD: 'LD',
     RD: 'RD',
     G: 'G'

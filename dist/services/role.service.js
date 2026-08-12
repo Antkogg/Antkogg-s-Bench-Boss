@@ -16,15 +16,16 @@ export class RoleService {
             !Array.isArray(config.positionRoleIds)
             ? config.positionRoleIds
             : {};
-        const signupKey = player.signupPosition === 'RW_F' ? 'RW' : player.signupPosition;
-        const desiredPositionRole = typeof positionRoles[signupKey] === 'string' ? positionRoles[signupKey] : null;
+        const desiredPositionRoles = player.signupPositions
+            .map((pos) => (typeof positionRoles[pos] === 'string' ? positionRoles[pos] : null))
+            .filter((id) => Boolean(id));
         const configuredPositionRoles = Object.values(positionRoles).filter((id) => typeof id === 'string');
-        const desired = [config.registeredRoleId, desiredGroupRole, desiredPositionRole].filter((id) => Boolean(id));
+        const desired = [config.registeredRoleId, desiredGroupRole, ...desiredPositionRoles].filter((id) => Boolean(id));
         const remove = configuredGroupRoles.filter((id) => id !== desiredGroupRole && member.roles.cache.has(id));
         try {
             const rolesToRemove = [
                 ...remove,
-                ...configuredPositionRoles.filter((id) => id !== desiredPositionRole && member.roles.cache.has(id)),
+                ...configuredPositionRoles.filter((id) => !desiredPositionRoles.includes(id) && member.roles.cache.has(id)),
             ];
             if (rolesToRemove.length)
                 await member.roles.remove(rolesToRemove, 'Bench Boss registration role synchronization');

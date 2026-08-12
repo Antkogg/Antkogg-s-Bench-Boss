@@ -27,7 +27,7 @@ export async function handlePlayerSearch(interaction, context) {
         embeds: [
             brandedEmbed()
                 .setTitle('PLAYER • MANAGEMENT')
-                .addFields({ name: 'EA TAG', value: `\`${view.eaTag}\``, inline: true }, { name: 'LG', value: `${view.lgUsername} • ${view.signupPosition}`, inline: true }, { name: 'SCOUTING', value: `${played} Played`, inline: true }, { name: 'ATTENDANCE', value: `${attended} / ${view.attendance.length}`, inline: true }, { name: 'STATUS', value: view.internalStatus, inline: true }, {
+                .addFields({ name: 'EA TAG', value: `\`${view.eaTag}\``, inline: true }, { name: 'LG', value: `${view.lgUsername} • ${view.signupPositions.join('/')}`, inline: true }, { name: 'SCOUTING', value: `${played} Played`, inline: true }, { name: 'ATTENDANCE', value: `${attended} / ${view.attendance.length}`, inline: true }, { name: 'STATUS', value: view.internalStatus, inline: true }, {
                 name: 'PRIVATE RECORD',
                 value: `${view.evaluations.length} recent evaluations • ${view.notes.length} recent notes`,
             }),

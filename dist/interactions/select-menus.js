@@ -2,6 +2,7 @@ import { AppError } from '../utils/errors.js';
 import { renderSuccess } from '../renderers/design.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { showManagementModal } from './modals.js';
+import { signupPositionLabel } from '../domain/positions.js';
 export async function handleSelectMenu(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this management control in the server.');
@@ -89,7 +90,7 @@ export async function handleSelectMenu(interaction, context, parsed) {
             embeds: [
                 renderSuccess('Shortlist', shortlist.length
                     ? shortlist
-                        .map((player) => `**${player.internalStatus}** • \`${player.eaTag}\` • ${player.signupPosition}`)
+                        .map((player) => `**${player.internalStatus}** • \`${player.eaTag}\` • ${signupPositionLabel(player.signupPositions)}`)
                         .join('\n')
                     : 'No players are shortlisted yet.'),
             ],

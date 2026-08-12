@@ -35,7 +35,7 @@ export function renderPlayerProfile(player) {
             brandedEmbed()
                 .setTitle('PLAYER PROFILE')
                 .setThumbnail(player.discordAvatarUrl)
-                .addFields({ name: 'EA TAG', value: `\`${player.eaTag}\``, inline: true }, { name: 'LG USERNAME', value: player.lgUsername, inline: true }, { name: 'LG POSITION', value: signupPositionLabel(player.signupPosition), inline: true }, {
+                .addFields({ name: 'EA TAG', value: `\`${player.eaTag}\``, inline: true }, { name: 'LG USERNAME', value: player.lgUsername, inline: true }, { name: 'LG POSITION', value: signupPositionLabel(player.signupPositions), inline: true }, {
                 name: 'ELIGIBLE',
                 value: eligiblePositions(player.positionGroup).join('  •  '),
                 inline: false,
