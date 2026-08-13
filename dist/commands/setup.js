@@ -102,7 +102,7 @@ export async function handleSetup(interaction, context) {
             actorDiscordId: interaction.user.id,
             timezone,
             defaultFormat: interaction.options.getString('format', true),
-            defaultDurationMinutes: interaction.options.getInteger('duration', true),
+            defaultDurationMinutes: 60,
             reminderMinutes: reminders,
         });
     }

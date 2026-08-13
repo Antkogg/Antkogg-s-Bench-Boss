@@ -58,7 +58,15 @@ export const commandDefinitions = [
         .addStringOption((option) =>
           option
             .setName('timezone')
-            .setDescription('IANA timezone, e.g. America/New_York')
+            .setDescription('Your local timezone')
+            .addChoices(
+              { name: 'Eastern Time (EST/EDT)', value: 'America/New_York' },
+              { name: 'Central Time (CST/CDT)', value: 'America/Chicago' },
+              { name: 'Mountain Time (MST/MDT)', value: 'America/Denver' },
+              { name: 'Pacific Time (PST/PDT)', value: 'America/Los_Angeles' },
+              { name: 'Atlantic Time (AST/ADT)', value: 'America/Halifax' },
+              { name: 'Alaska Time (AKST/AKDT)', value: 'America/Anchorage' },
+            )
             .setRequired(true),
         )
         .addStringOption((option) =>
@@ -69,14 +77,6 @@ export const commandDefinitions = [
               { name: 'One Side', value: 'ONE_SIDE' },
               { name: 'Private 6v6', value: 'PRIVATE_6V6' },
             )
-            .setRequired(true),
-        )
-        .addIntegerOption((option) =>
-          option
-            .setName('duration')
-            .setDescription('Default game duration in minutes')
-            .setMinValue(15)
-            .setMaxValue(360)
             .setRequired(true),
         )
         .addStringOption((option) =>
@@ -106,13 +106,6 @@ export const commandDefinitions = [
               { name: 'One Side', value: 'ONE_SIDE' },
               { name: 'Private 6v6', value: 'PRIVATE_6V6' },
             ),
-        )
-        .addIntegerOption((option) =>
-          option
-            .setName('duration')
-            .setDescription('Expected duration in minutes')
-            .setMinValue(15)
-            .setMaxValue(360),
         )
         .addStringOption((option) =>
           option

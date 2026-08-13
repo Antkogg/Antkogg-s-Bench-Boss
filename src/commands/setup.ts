@@ -121,7 +121,7 @@ export async function handleSetup(
       actorDiscordId: interaction.user.id,
       timezone,
       defaultFormat: interaction.options.getString('format', true) as SessionFormat,
-      defaultDurationMinutes: interaction.options.getInteger('duration', true),
+      defaultDurationMinutes: 60,
       reminderMinutes: reminders,
     });
   }

@@ -87,7 +87,7 @@ export async function handleScout(
     const session = await context.scouting.create({
       guildId: interaction.guildId,
       startsAt: starts.toUTC().toJSDate(),
-      durationMinutes: interaction.options.getInteger('duration') ?? config.defaultDurationMinutes,
+      durationMinutes: config.defaultDurationMinutes,
       format: (interaction.options.getString('format') ?? config.defaultFormat) as SessionFormat,
       signupMode: (interaction.options.getString('mode') ?? 'OPEN_SIGNUP') as SignupMode,
       ...(note ? { note } : {}),
