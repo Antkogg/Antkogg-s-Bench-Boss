@@ -89,12 +89,17 @@ export async function routeInteraction(interaction, context) {
             embeds: [renderError(publicErrorMessage(error))],
             components: [],
         };
-        if (interaction.deferred)
-            await interaction.editReply(response);
-        else if (interaction.replied)
-            await interaction.followUp(response);
-        else
-            await interaction.reply(response);
+        try {
+            if (interaction.deferred)
+                await interaction.editReply(response);
+            else if (interaction.replied)
+                await interaction.followUp(response);
+            else
+                await interaction.reply(response);
+        }
+        catch (replyError) {
+            logger.error({ error: replyError, interactionId: interaction.id }, 'failed to send error reply');
+        }
     }
 }
 //# sourceMappingURL=interaction-router.js.map
