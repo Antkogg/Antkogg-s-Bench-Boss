@@ -49,9 +49,6 @@ export async function handleSetup(interaction, context) {
         });
     }
     else if (subcommand === 'roles') {
-        const positionRoleIds = Object.fromEntries(['lw', 'c', 'rw', 'ld', 'rd', 'g']
-            .map((name) => [name.toUpperCase(), interaction.options.getRole(name)?.id])
-            .filter((entry) => Boolean(entry[1])));
         await context.config.update({
             guildId: interaction.guildId,
             actorDiscordId: interaction.user.id,
@@ -60,7 +57,7 @@ export async function handleSetup(interaction, context) {
             forwardRoleId: interaction.options.getRole('forward')?.id ?? null,
             defenseRoleId: interaction.options.getRole('defense')?.id ?? null,
             goalieRoleId: interaction.options.getRole('goalie')?.id ?? null,
-            positionRoleIds,
+            positionRoleIds: {},
         });
     }
     else {
