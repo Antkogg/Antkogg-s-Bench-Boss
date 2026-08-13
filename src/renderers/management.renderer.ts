@@ -48,7 +48,6 @@ export function renderManagementPanel(session: ScoutingSessionView) {
             { label: 'Move Player', value: 'move' },
             { label: 'Swap Players', value: 'swap' },
             { label: 'View Waitlist', value: 'waitlist' },
-            { label: 'Attendance', value: 'attendance' },
           ),
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(

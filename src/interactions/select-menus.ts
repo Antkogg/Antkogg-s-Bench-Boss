@@ -43,13 +43,6 @@ export async function handleSelectMenu(
       });
       return;
     }
-    if (value === 'attendance') {
-      await interaction.reply({
-        ephemeral: true,
-        content: 'Attendance is recorded from each player’s management view after the session.',
-      });
-      return;
-    }
     throw new AppError('INVALID_INPUT', 'That management view is not available here.');
   }
   if (parsed.action === 'manage-action' && parsed.value === 'set-status') {

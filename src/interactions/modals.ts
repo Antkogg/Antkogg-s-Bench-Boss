@@ -145,11 +145,6 @@ export async function showManagementModal(
         TextInputStyle.Paragraph,
       ),
     );
-  } else if (kind === 'attendance') {
-    modal.addComponents(
-      textInput('session', 'Session ID', 'Copy from player history or management panel', 40),
-      textInput('status', 'Attendance status', 'PLAYED, NO_SHOW, EXCUSED, or CANCELLED', 10),
-    );
   }
   await interaction.showModal(modal);
 }
@@ -213,25 +208,6 @@ export async function handleManagementModal(
     await interaction.reply({
       ephemeral: true,
       embeds: [renderSuccess('Evaluation saved', 'This evaluation remains private to management.')],
-    });
-    return;
-  }
-  if (kind === 'attendance') {
-    const status = interaction.fields.getTextInputValue('status').trim().toUpperCase();
-    if (!['PLAYED', 'NO_SHOW', 'EXCUSED', 'CANCELLED'].includes(status))
-      throw new AppError(
-        'INVALID_INPUT',
-        'Attendance must be PLAYED, NO_SHOW, EXCUSED, or CANCELLED.',
-      );
-    await context.attendance.record(
-      interaction.fields.getTextInputValue('session').trim(),
-      parsed.entityId,
-      status as Parameters<typeof context.attendance.record>[2],
-      interaction.user.id,
-    );
-    await interaction.reply({
-      ephemeral: true,
-      embeds: [renderSuccess('Attendance recorded', `Attendance is marked **${status}**.`)],
     });
     return;
   }

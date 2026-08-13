@@ -21,7 +21,7 @@ export async function handleManagementButton(interaction, context, parsed) {
         await interaction.reply({ ephemeral: true, ...renderManagementPanel(session) });
         return;
     }
-    if (['add', 'move', 'remove', 'swap', 'note', 'evaluate', 'attendance'].includes(parsed.value ?? ''))
+    if (['add', 'move', 'remove', 'swap', 'note', 'evaluate'].includes(parsed.value ?? ''))
         return showManagementModal(interaction, parsed);
     if (parsed.value === 'history') {
         const view = await context.evaluations.playerView(parsed.entityId);

@@ -33,7 +33,7 @@ export function renderManagementPanel(session) {
                 label: 'Add Player',
                 value: 'add',
                 description: 'Add with optional eligibility/conflict override',
-            }, { label: 'Remove Player', value: 'remove' }, { label: 'Move Player', value: 'move' }, { label: 'Swap Players', value: 'swap' }, { label: 'View Waitlist', value: 'waitlist' }, { label: 'Attendance', value: 'attendance' })),
+            }, { label: 'Remove Player', value: 'remove' }, { label: 'Move Player', value: 'move' }, { label: 'Swap Players', value: 'swap' }, { label: 'View Waitlist', value: 'waitlist' })),
             new ActionRowBuilder().addComponents(...actions.slice(0, 5).map(([value, label]) => new ButtonBuilder()
                 .setCustomId(customId('manage-action', session.id, value))
                 .setLabel(label)

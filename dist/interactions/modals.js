@@ -81,9 +81,6 @@ export async function showManagementModal(interaction, parsed) {
     else if (kind === 'evaluate') {
         modal.addComponents(textInput('ratings', 'O / OFF / DEF / IQ / PUCK / COMMS', 'Example: 4,4,5,4,3,5', 20), textInput('body', 'Private evaluation note', 'Only management can see this', 1000, TextInputStyle.Paragraph));
     }
-    else if (kind === 'attendance') {
-        modal.addComponents(textInput('session', 'Session ID', 'Copy from player history or management panel', 40), textInput('status', 'Attendance status', 'PLAYED, NO_SHOW, EXCUSED, or CANCELLED', 10));
-    }
     await interaction.showModal(modal);
 }
 function parseScoutingPosition(value) {
@@ -137,17 +134,6 @@ export async function handleManagementModal(interaction, context, parsed) {
         await interaction.reply({
             ephemeral: true,
             embeds: [renderSuccess('Evaluation saved', 'This evaluation remains private to management.')],
-        });
-        return;
-    }
-    if (kind === 'attendance') {
-        const status = interaction.fields.getTextInputValue('status').trim().toUpperCase();
-        if (!['PLAYED', 'NO_SHOW', 'EXCUSED', 'CANCELLED'].includes(status))
-            throw new AppError('INVALID_INPUT', 'Attendance must be PLAYED, NO_SHOW, EXCUSED, or CANCELLED.');
-        await context.attendance.record(interaction.fields.getTextInputValue('session').trim(), parsed.entityId, status, interaction.user.id);
-        await interaction.reply({
-            ephemeral: true,
-            embeds: [renderSuccess('Attendance recorded', `Attendance is marked **${status}**.`)],
         });
         return;
     }

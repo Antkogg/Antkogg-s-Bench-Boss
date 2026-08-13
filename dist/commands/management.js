@@ -21,13 +21,12 @@ export async function handlePlayerSearch(interaction, context) {
     const selected = players[0];
     const view = await context.evaluations.playerView(selected.id);
     const played = view.attendance.filter((item) => item.status === 'PLAYED').length;
-    const attended = view.attendance.filter((item) => item.status === 'PLAYED' || item.status === 'EXCUSED').length;
     await interaction.reply({
         ephemeral: true,
         embeds: [
             brandedEmbed()
                 .setTitle('PLAYER • MANAGEMENT')
-                .addFields({ name: 'EA TAG', value: `\`${view.eaTag}\``, inline: true }, { name: 'LG', value: `${view.lgUsername} • ${view.signupPositions.join('/')}`, inline: true }, { name: 'SCOUTING', value: `${played} Played`, inline: true }, { name: 'ATTENDANCE', value: `${attended} / ${view.attendance.length}`, inline: true }, { name: 'STATUS', value: view.internalStatus, inline: true }, {
+                .addFields({ name: 'EA TAG', value: `\`${view.eaTag}\``, inline: true }, { name: 'LG', value: `${view.lgUsername} • ${view.signupPositions.join('/')}`, inline: true }, { name: 'SCOUTING', value: `${played} Played`, inline: true }, { name: 'STATUS', value: view.internalStatus, inline: true }, {
                 name: 'PRIVATE RECORD',
                 value: `${view.evaluations.length} recent evaluations • ${view.notes.length} recent notes`,
             }),
@@ -45,9 +44,6 @@ export async function handlePlayerSearch(interaction, context) {
                 .setStyle(ButtonStyle.Primary), new ButtonBuilder()
                 .setCustomId(`bb:manage-action:${view.id}:status`)
                 .setLabel('Status')
-                .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
-                .setCustomId(`bb:manage-action:${view.id}:attendance`)
-                .setLabel('Attendance')
                 .setStyle(ButtonStyle.Secondary)),
         ],
     });

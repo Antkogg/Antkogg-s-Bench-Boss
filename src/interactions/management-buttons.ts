@@ -27,7 +27,7 @@ export async function handleManagementButton(
     return;
   }
   if (
-    ['add', 'move', 'remove', 'swap', 'note', 'evaluate', 'attendance'].includes(parsed.value ?? '')
+    ['add', 'move', 'remove', 'swap', 'note', 'evaluate'].includes(parsed.value ?? '')
   )
     return showManagementModal(interaction, parsed);
   if (parsed.value === 'history') {
