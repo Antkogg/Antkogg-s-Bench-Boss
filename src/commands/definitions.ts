@@ -13,6 +13,11 @@ export const commandDefinitions = [
     .addSubcommand((sub) => sub.setName('view').setDescription('View current server configuration'))
     .addSubcommand((sub) =>
       sub
+        .setName('onboarding')
+        .setDescription('Post the registration panel to the current channel'),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName('channels')
         .setDescription('Configure Bench Boss channels')
         .addChannelOption((option) =>

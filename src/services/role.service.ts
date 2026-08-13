@@ -11,7 +11,7 @@ export class RoleService {
         ? (config.positionRoleIds as Record<string, unknown>)
         : {};
     const desiredPositionRoles = player.signupPositions
-      .map((pos) => (typeof positionRoles[pos] === 'string' ? (positionRoles[pos] as string) : null))
+      .map((pos) => (typeof positionRoles[pos] === 'string' ? positionRoles[pos] : null))
       .filter((id): id is string => Boolean(id));
     const configuredPositionRoles = Object.values(positionRoles).filter(
       (id): id is string => typeof id === 'string',

@@ -1,10 +1,11 @@
 import { DateTime } from 'luxon';
 import type { ChatInputCommandInteraction } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
 import type { SessionFormat } from '../generated/prisma/enums.js';
-import { PermissionFlagsBits } from 'discord.js';
 import type { BotContext } from './context.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
+import { customId } from '../utils/custom-id.js';
 
 export async function handleSetup(
   interaction: ChatInputCommandInteraction,
@@ -48,6 +49,32 @@ export async function handleSetup(
             },
           ),
       ],
+    });
+    return;
+  }
+  if (subcommand === 'onboarding') {
+    if (!interaction.channel) throw new AppError('NOT_FOUND', 'This must be used in a channel.');
+    await interaction.channel.send({
+      embeds: [
+        brandedEmbed()
+          .setTitle('SCOUTING REGISTRATION')
+          .setThumbnail(interaction.client.user.displayAvatarURL())
+          .setDescription(
+            'Would you like to scout with us?\n\nClick the button below to register your **exact EA Tag** and positions so you can jump into upcoming scouting games.',
+          ),
+      ],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(customId('profile-action', 'register'))
+            .setLabel('Register for Scouting')
+            .setStyle(ButtonStyle.Primary),
+        ),
+      ],
+    });
+    await interaction.reply({
+      ephemeral: true,
+      embeds: [renderSuccess('Onboarding posted', 'The registration panel has been posted.')],
     });
     return;
   }
