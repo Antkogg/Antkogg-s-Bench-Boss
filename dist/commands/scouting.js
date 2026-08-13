@@ -52,21 +52,40 @@ export async function handleScout(interaction, context) {
     if (subcommand === 'create') {
         if (!config.scoutingChannelId)
             throw new AppError('NOT_CONFIGURED', 'Configure the scouting channel with `/setup channels` first.');
-        const local = interaction.options.getString('starts', true);
-        const starts = DateTime.fromFormat(local, 'yyyy-MM-dd HH:mm', { zone: config.timezone });
+        const dateStr = interaction.options.getString('date', true);
+        const timeStr = interaction.options.getString('time', true);
+        let starts = DateTime.now().setZone(config.timezone);
+        if (dateStr === 'Tomorrow') {
+            starts = starts.plus({ days: 1 });
+        }
+        else if (dateStr !== 'Today') {
+            const targetDayMap = {
+                Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4,
+                Friday: 5, Saturday: 6, Sunday: 7
+            };
+            const targetDay = targetDayMap[dateStr];
+            if (targetDay) {
+                let daysToAdd = targetDay - starts.weekday;
+                if (daysToAdd <= 0)
+                    daysToAdd += 7;
+                starts = starts.plus({ days: daysToAdd });
+            }
+        }
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        starts = starts.set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
         if (!starts.isValid)
-            throw new AppError('INVALID_INPUT', 'Use `YYYY-MM-DD HH:mm`, such as `2026-08-19 21:00`.');
+            throw new AppError('INVALID_INPUT', 'Failed to parse the selected date and time.');
         if (starts.toMillis() < Date.now() - 60_000)
-            throw new AppError('INVALID_INPUT', 'Scouting must start in the future.');
+            throw new AppError('INVALID_INPUT', 'Scouting must start in the future. Check your time selection.');
         await interaction.deferReply({ ephemeral: true });
-        const note = interaction.options.getString('note');
+        const title = interaction.options.getString('title');
         const session = await context.scouting.create({
             guildId: interaction.guildId,
             startsAt: starts.toUTC().toJSDate(),
             durationMinutes: config.defaultDurationMinutes,
             format: interaction.options.getString('format', true),
             signupMode: (interaction.options.getString('mode') ?? 'OPEN_SIGNUP'),
-            ...(note ? { note } : {}),
+            ...(title ? { note: title } : {}),
             createdByDiscordId: interaction.user.id,
         });
         await context.posts.publish(session);

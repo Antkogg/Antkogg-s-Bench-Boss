@@ -54,8 +54,14 @@ export const commandDefinitions = [
         .setName('create')
         .setDescription('Create a scouting session')
         .addStringOption((option) => option
-        .setName('starts')
-        .setDescription('Local date/time: YYYY-MM-DD HH:mm')
+        .setName('date')
+        .setDescription('Date of the game')
+        .addChoices({ name: 'Today', value: 'Today' }, { name: 'Tomorrow', value: 'Tomorrow' }, { name: 'Monday', value: 'Monday' }, { name: 'Tuesday', value: 'Tuesday' }, { name: 'Wednesday', value: 'Wednesday' }, { name: 'Thursday', value: 'Thursday' }, { name: 'Friday', value: 'Friday' }, { name: 'Saturday', value: 'Saturday' }, { name: 'Sunday', value: 'Sunday' })
+        .setRequired(true))
+        .addStringOption((option) => option
+        .setName('time')
+        .setDescription('Start time')
+        .addChoices({ name: '6:00 PM', value: '18:00' }, { name: '6:30 PM', value: '18:30' }, { name: '7:00 PM', value: '19:00' }, { name: '7:30 PM', value: '19:30' }, { name: '8:00 PM', value: '20:00' }, { name: '8:30 PM', value: '20:30' }, { name: '9:00 PM', value: '21:00' }, { name: '9:30 PM', value: '21:30' }, { name: '10:00 PM', value: '22:00' }, { name: '10:30 PM', value: '22:30' }, { name: '11:00 PM', value: '23:00' }, { name: '11:30 PM', value: '23:30' })
         .setRequired(true))
         .addStringOption((option) => option
         .setName('format')
@@ -66,7 +72,7 @@ export const commandDefinitions = [
         .setName('mode')
         .setDescription('Signup mode')
         .addChoices({ name: 'Open Signup', value: 'OPEN_SIGNUP' }, { name: 'Availability', value: 'AVAILABILITY' }))
-        .addStringOption((option) => option.setName('note').setDescription('Optional note').setMaxLength(500)))
+        .addStringOption((option) => option.setName('title').setDescription('Optional title (e.g. "Scouting vs X")').setMaxLength(100)))
         .addSubcommand((sub) => sub
         .setName('manage')
         .setDescription('Open the private management panel')

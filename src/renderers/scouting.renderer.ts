@@ -82,13 +82,13 @@ export function renderScoutingSession(session: ScoutingSessionView) {
     session.status === 'OPEN' && !session.signupsOpen
       ? 'SIGNUPS CLOSED'
       : STATUS_LABELS[session.status];
+  const titleText = session.note ? session.note : format;
   const embed = brandedEmbed(STATUS_COLORS[session.status])
-    .setTitle(`${format}  •  ${signupState}`)
+    .setTitle(`${titleText}  •  ${signupState}`)
     .setDescription(
       [
         `## ${discordTimestamp(session.startsAt, 'F')}`,
         discordTimestamp(session.startsAt, 'R'),
-        session.note ? `\n${session.note}` : '',
       ]
         .filter(Boolean)
         .join('\n'),
