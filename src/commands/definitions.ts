@@ -102,21 +102,8 @@ export const commandDefinitions = [
         .addStringOption((option) =>
           option
             .setName('time')
-            .setDescription('Start time')
-            .addChoices(
-              { name: '6:00 PM', value: '18:00' },
-              { name: '6:30 PM', value: '18:30' },
-              { name: '7:00 PM', value: '19:00' },
-              { name: '7:30 PM', value: '19:30' },
-              { name: '8:00 PM', value: '20:00' },
-              { name: '8:30 PM', value: '20:30' },
-              { name: '9:00 PM', value: '21:00' },
-              { name: '9:30 PM', value: '21:30' },
-              { name: '10:00 PM', value: '22:00' },
-              { name: '10:30 PM', value: '22:30' },
-              { name: '11:00 PM', value: '23:00' },
-              { name: '11:30 PM', value: '23:30' },
-            )
+            .setDescription('Start time (e.g. 8:15 PM)')
+            .setAutocomplete(true)
             .setRequired(true),
         )
         .addStringOption((option) =>
