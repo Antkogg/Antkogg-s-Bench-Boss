@@ -61,15 +61,20 @@ export async function handleSetup(
       managementChannelId: management?.id ?? null,
     });
   } else if (subcommand === 'roles') {
+    const positionRoleIds = Object.fromEntries(
+      ['lw', 'c', 'rw', 'ld', 'rd', 'g']
+        .map((name) => [name.toUpperCase(), interaction.options.getRole(name)?.id] as const)
+        .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
+    );
     await context.config.update({
       guildId: interaction.guildId,
       actorDiscordId: interaction.user.id,
       managementRoleId: interaction.options.getRole('management', true).id,
       registeredRoleId: interaction.options.getRole('registered')?.id ?? null,
-      forwardRoleId: interaction.options.getRole('forward')?.id ?? null,
-      defenseRoleId: interaction.options.getRole('defense')?.id ?? null,
-      goalieRoleId: interaction.options.getRole('goalie')?.id ?? null,
-      positionRoleIds: {},
+      forwardRoleId: null,
+      defenseRoleId: null,
+      goalieRoleId: null,
+      positionRoleIds,
     });
   } else {
     const timezone = interaction.options.getString('timezone', true);

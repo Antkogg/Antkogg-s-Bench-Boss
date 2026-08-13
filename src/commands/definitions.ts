@@ -39,9 +39,12 @@ export const commandDefinitions = [
         .addRoleOption((option) =>
           option.setName('registered').setDescription('Registered player role'),
         )
-        .addRoleOption((option) => option.setName('forward').setDescription('Forward group role'))
-        .addRoleOption((option) => option.setName('defense').setDescription('Defense group role'))
-        .addRoleOption((option) => option.setName('goalie').setDescription('Goalie group role')),
+        .addRoleOption((option) => option.setName('lw').setDescription('Optional LW role'))
+        .addRoleOption((option) => option.setName('c').setDescription('Optional C role'))
+        .addRoleOption((option) => option.setName('rw').setDescription('Optional RW role'))
+        .addRoleOption((option) => option.setName('ld').setDescription('Optional LD role'))
+        .addRoleOption((option) => option.setName('rd').setDescription('Optional RD role'))
+        .addRoleOption((option) => option.setName('g').setDescription('Optional G role')),
     )
     .addSubcommand((sub) =>
       sub
