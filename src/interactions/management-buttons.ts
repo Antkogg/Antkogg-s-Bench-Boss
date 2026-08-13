@@ -71,6 +71,9 @@ export async function handleManagementButton(
     return;
   }
   let session;
+  if (['lock', 'signups', 'start', 'complete', 'cancel', 'repost'].includes(parsed.value ?? '')) {
+    await interaction.deferUpdate();
+  }
   if (parsed.value === 'lock') {
     const current = await context.scouting.get(parsed.entityId);
     session = await context.scouting.setStatus(
@@ -128,5 +131,5 @@ export async function handleManagementButton(
       ),
     );
   }
-  await interaction.update({ ...renderManagementPanel(session) });
+  await interaction.editReply({ ...renderManagementPanel(session) });
 }

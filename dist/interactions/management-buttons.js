@@ -57,6 +57,9 @@ export async function handleManagementButton(interaction, context, parsed) {
         return;
     }
     let session;
+    if (['lock', 'signups', 'start', 'complete', 'cancel', 'repost'].includes(parsed.value ?? '')) {
+        await interaction.deferUpdate();
+    }
     if (parsed.value === 'lock') {
         const current = await context.scouting.get(parsed.entityId);
         session = await context.scouting.setStatus(parsed.entityId, current?.status === 'LOCKED' ? 'OPEN' : 'LOCKED', interaction.user.id);
@@ -101,6 +104,6 @@ export async function handleManagementButton(interaction, context, parsed) {
             ? `You're locked in at **${recipient.position}**.`
             : 'This scouting session has been cancelled.')));
     }
-    await interaction.update({ ...renderManagementPanel(session) });
+    await interaction.editReply({ ...renderManagementPanel(session) });
 }
 //# sourceMappingURL=management-buttons.js.map
