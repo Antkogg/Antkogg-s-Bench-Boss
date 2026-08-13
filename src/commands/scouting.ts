@@ -88,7 +88,7 @@ export async function handleScout(
       guildId: interaction.guildId,
       startsAt: starts.toUTC().toJSDate(),
       durationMinutes: config.defaultDurationMinutes,
-      format: (interaction.options.getString('format') ?? config.defaultFormat) as SessionFormat,
+      format: interaction.options.getString('format', true) as SessionFormat,
       signupMode: (interaction.options.getString('mode') ?? 'OPEN_SIGNUP') as SignupMode,
       ...(note ? { note } : {}),
       createdByDiscordId: interaction.user.id,

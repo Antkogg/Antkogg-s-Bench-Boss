@@ -1,7 +1,6 @@
 import { DateTime } from 'luxon';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
-import type { SessionFormat } from '../generated/prisma/enums.js';
 import type { BotContext } from './context.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
@@ -120,7 +119,7 @@ export async function handleSetup(
       guildId: interaction.guildId,
       actorDiscordId: interaction.user.id,
       timezone,
-      defaultFormat: interaction.options.getString('format', true) as SessionFormat,
+      defaultFormat: 'PRIVATE_6V6',
       defaultDurationMinutes: 60,
       reminderMinutes: reminders,
     });

@@ -101,7 +101,7 @@ export async function handleSetup(interaction, context) {
             guildId: interaction.guildId,
             actorDiscordId: interaction.user.id,
             timezone,
-            defaultFormat: interaction.options.getString('format', true),
+            defaultFormat: 'PRIVATE_6V6',
             defaultDurationMinutes: 60,
             reminderMinutes: reminders,
         });

@@ -71,16 +71,6 @@ export const commandDefinitions = [
         )
         .addStringOption((option) =>
           option
-            .setName('format')
-            .setDescription('Default scouting format')
-            .addChoices(
-              { name: 'One Side', value: 'ONE_SIDE' },
-              { name: 'Private 6v6', value: 'PRIVATE_6V6' },
-            )
-            .setRequired(true),
-        )
-        .addStringOption((option) =>
-          option
             .setName('reminders')
             .setDescription('Comma-separated minutes before game, e.g. 60,15'),
         ),
@@ -105,7 +95,8 @@ export const commandDefinitions = [
             .addChoices(
               { name: 'One Side', value: 'ONE_SIDE' },
               { name: 'Private 6v6', value: 'PRIVATE_6V6' },
-            ),
+            )
+            .setRequired(true),
         )
         .addStringOption((option) =>
           option
