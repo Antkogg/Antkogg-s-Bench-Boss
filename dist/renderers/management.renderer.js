@@ -25,7 +25,7 @@ export function renderManagementPanel(session) {
                 inline: false,
             }),
         ],
-        components: [
+        components: session.status === 'CANCELLED' || session.status === 'COMPLETED' ? [] : [
             new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
                 .setCustomId(customId('manage-action', session.id, 'lineup'))
                 .setPlaceholder('Choose a lineup action')

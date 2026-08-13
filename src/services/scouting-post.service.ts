@@ -20,6 +20,17 @@ export class ScoutingPostService {
     if (!channel?.isTextBased() || channel.isDMBased())
       throw new AppError('NOT_CONFIGURED', 'The configured scouting channel is unavailable.');
     const textChannel = channel;
+    if (session.status === 'CANCELLED') {
+      if (session.messageId) {
+        try {
+          const message = await textChannel.messages.fetch(session.messageId);
+          await message.delete();
+        } catch (error) {
+          logger.warn({ error, sessionId: session.id }, 'failed to delete cancelled session message');
+        }
+      }
+      return;
+    }
     if (!forceNew && session.messageId) {
       try {
         const message = await textChannel.messages.fetch(session.messageId);

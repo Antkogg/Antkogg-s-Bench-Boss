@@ -33,7 +33,7 @@ export function renderManagementPanel(session: ScoutingSessionView) {
           },
         ),
     ],
-    components: [
+    components: session.status === 'CANCELLED' || session.status === 'COMPLETED' ? [] : [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(customId('manage-action', session.id, 'lineup'))
