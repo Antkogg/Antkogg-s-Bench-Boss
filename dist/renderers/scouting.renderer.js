@@ -58,7 +58,7 @@ export function renderScoutingSession(session) {
         .setTitle(`${format}  •  ${signupState}`)
         .setDescription([
         `## ${discordTimestamp(session.startsAt, 'F')}`,
-        `${discordTimestamp(session.startsAt, 'R')}  •  ${session.durationMinutes} min`,
+        discordTimestamp(session.startsAt, 'R'),
         session.note ? `\n${session.note}` : '',
     ]
         .filter(Boolean)
