@@ -21,7 +21,8 @@ export async function handleManagementButton(
   if (!hasManagementAccess(accessLevel(member, config)))
     throw new AppError('NOT_ALLOWED', 'This control is private to LG Assistant management.');
   if (parsed.action === 'manage-hub') {
-    if (parsed.value === 'list-sessions') {
+    const val = parsed.value ?? parsed.entityId;
+    if (val === 'list-sessions') {
       const sessions = await context.scouting.upcoming(interaction.guildId);
       if (!sessions.length) {
         await interaction.reply({
@@ -34,7 +35,7 @@ export async function handleManagementButton(
       await interaction.reply({ ephemeral: true, ...renderManagementPanel(upcomingSession) });
       return;
     }
-    if (parsed.value === 'weekly-avail') {
+    if (val === 'weekly-avail') {
       const currentWeek = await context.weeklyAvailability.current(interaction.guildId);
       const description = currentWeek
         ? `**Week Status:** ${currentWeek.status}\n**Submissions:** ${currentWeek.submissions.length} players submitted\n**Games This Week:** ${currentWeek.games.length}`
@@ -45,11 +46,11 @@ export async function handleManagementButton(
       });
       return;
     }
-    if (parsed.value === 'search-player') {
+    if (val === 'search-player') {
       await showManagementModal(interaction, { action: 'modal-manage', entityId: 'search', value: 'search-player' });
       return;
     }
-    if (parsed.value === 'setup-view') {
+    if (val === 'setup-view') {
       const details = `**Timezone:** ${config.timezone}\n**Format:** ${config.defaultFormat}\n**Scouting Channel:** <#${config.scoutingChannelId ?? 'Not Set'}>\n**Management Role:** ${config.managementRoleId ? `<@&${config.managementRoleId}>` : 'Server Admins / Managers'}`;
       await interaction.reply({
         ephemeral: true,
@@ -57,7 +58,7 @@ export async function handleManagementButton(
       });
       return;
     }
-    if (parsed.value === 'create-session') {
+    if (val === 'create-session') {
       await interaction.reply({
         ephemeral: true,
         embeds: [
@@ -69,6 +70,7 @@ export async function handleManagementButton(
       });
       return;
     }
+    return;
   }
   if (parsed.action === 'manage') {
     const session = await context.scouting.get(parsed.entityId);

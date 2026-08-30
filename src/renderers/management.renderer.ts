@@ -124,25 +124,25 @@ export function renderMasterDashboard() {
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'create-session'))
+          .setCustomId(customId('manage-hub', 'hub', 'create-session'))
           .setLabel('➕ New Scouting Session')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'list-sessions'))
+          .setCustomId(customId('manage-hub', 'hub', 'list-sessions'))
           .setLabel('📋 Active Sessions')
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'weekly-avail'))
+          .setCustomId(customId('manage-hub', 'hub', 'weekly-avail'))
           .setLabel('📅 Weekly Availability')
           .setStyle(ButtonStyle.Secondary),
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'search-player'))
+          .setCustomId(customId('manage-hub', 'hub', 'search-player'))
           .setLabel('🔍 Search Player')
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'setup-view'))
+          .setCustomId(customId('manage-hub', 'hub', 'setup-view'))
           .setLabel('⚙️ Server Settings')
           .setStyle(ButtonStyle.Secondary),
       ),
