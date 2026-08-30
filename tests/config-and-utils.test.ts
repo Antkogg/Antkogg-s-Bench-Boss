@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadEnv } from '../src/config/env.js';
 import { customId, parseCustomId } from '../src/utils/custom-id.js';
-import { normalizeIdentity } from '../src/utils/normalize.js';
+import { normalizeIdentity, parseFlexibleTime } from '../src/utils/normalize.js';
 
 describe('configuration and identity safety', () => {
   it('normalizes only matching identity while preserving display input elsewhere', () => {
@@ -39,5 +39,14 @@ describe('configuration and identity safety', () => {
     const id = customId('signup', 'session123', 'C');
     expect(parseCustomId(id)).toEqual({ action: 'signup', entityId: 'session123', value: 'C' });
     expect(id.length).toBeLessThanOrEqual(100);
+  });
+
+  it('parses flexible time inputs like 3, 4, 330, 4pm, 8:30', () => {
+    expect(parseFlexibleTime('3')).toEqual({ hours: 15, minutes: 0 });
+    expect(parseFlexibleTime('4')).toEqual({ hours: 16, minutes: 0 });
+    expect(parseFlexibleTime('330')).toEqual({ hours: 15, minutes: 30 });
+    expect(parseFlexibleTime('4pm')).toEqual({ hours: 16, minutes: 0 });
+    expect(parseFlexibleTime('8:30 PM')).toEqual({ hours: 20, minutes: 30 });
+    expect(parseFlexibleTime('9:15 AM')).toEqual({ hours: 9, minutes: 15 });
   });
 });

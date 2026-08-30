@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import { parseFlexibleTime } from '../utils/normalize.js';
 import {
   ActionRowBuilder,
   ModalBuilder,
@@ -273,26 +274,7 @@ export async function handleManagementModal(
       }
     }
 
-    let hours = 0;
-    let minutes = 0;
-    const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    if (timeMatch && timeMatch[1] && timeMatch[2]) {
-      hours = parseInt(timeMatch[1], 10);
-      minutes = parseInt(timeMatch[2], 10);
-    } else {
-      const pmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)$/i);
-      if (pmMatch && pmMatch[1] && pmMatch[3]) {
-        hours = parseInt(pmMatch[1], 10);
-        minutes = parseInt(pmMatch[2] || '0', 10);
-        if (pmMatch[3].toLowerCase() === 'pm' && hours < 12) hours += 12;
-        if (pmMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
-      } else {
-        throw new AppError(
-          'INVALID_INPUT',
-          'Please enter a valid time (e.g. 8:30 PM, 9:00 PM, or 20:30).',
-        );
-      }
-    }
+    const { hours, minutes } = parseFlexibleTime(timeStr);
 
     starts = starts.set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
     if (!starts.isValid)
