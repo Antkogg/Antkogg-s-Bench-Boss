@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'SESSION_ENDED'
   | 'WAITLIST_EXISTS'
   | 'INVALID_INPUT'
+  | 'INVALID_STATE'
   | 'STALE_INTERACTION';
 
 export class AppError extends Error {

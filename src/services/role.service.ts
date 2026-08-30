@@ -16,19 +16,34 @@ export class RoleService {
     const configuredPositionRoles = Object.values(positionRoles).filter(
       (id): id is string => typeof id === 'string',
     );
-    const desired = [config.registeredRoleId, ...desiredPositionRoles].filter(
-      (id): id is string => Boolean(id),
-    );
+    const teamRole =
+      player.teamStatus === 'MANAGEMENT'
+        ? null
+        : player.teamStatus === 'ROSTER'
+          ? config.rosterRoleId
+          : player.teamStatus === 'TC'
+            ? config.tcRoleId
+            : player.teamStatus === 'SCOUT'
+              ? (config.scoutRoleId ?? config.registeredRoleId)
+              : null;
+    const desired = [teamRole, ...desiredPositionRoles].filter((id): id is string => Boolean(id));
     try {
+      const configuredTeamRoles = [
+        config.rosterRoleId,
+        config.tcRoleId,
+        config.scoutRoleId,
+        config.registeredRoleId,
+      ].filter((id): id is string => Boolean(id));
       const rolesToRemove = [
+        ...configuredTeamRoles.filter((id) => id !== teamRole && member.roles.cache.has(id)),
         ...configuredPositionRoles.filter(
           (id) => !desiredPositionRoles.includes(id) && member.roles.cache.has(id),
         ),
       ];
       if (rolesToRemove.length)
-        await member.roles.remove(rolesToRemove, 'Bench Boss registration role synchronization');
+        await member.roles.remove(rolesToRemove, "Antkogg's LG Assistant role synchronization");
       const add = desired.filter((id) => !member.roles.cache.has(id));
-      if (add.length) await member.roles.add(add, 'Bench Boss registration role synchronization');
+      if (add.length) await member.roles.add(add, "Antkogg's LG Assistant role synchronization");
       logger.info({ guildId: member.guild.id, discordUserId: member.id }, 'roles synchronized');
     } catch (error) {
       logger.warn(

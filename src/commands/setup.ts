@@ -13,7 +13,10 @@ export async function handleSetup(
   if (!interaction.inGuild() || !interaction.guildId)
     throw new AppError('NOT_ALLOWED', 'Setup is only available in a server.');
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))
-    throw new AppError('NOT_ALLOWED', 'Only server administrators can configure Bench Boss.');
+    throw new AppError(
+      'NOT_ALLOWED',
+      "Only server administrators can configure Antkogg's LG Assistant.",
+    );
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === 'view') {
     const config = await context.config.ensure(interaction.guildId);
@@ -30,10 +33,17 @@ export async function handleSetup(
             },
             {
               name: 'MANAGEMENT ROLE',
-              value: config.managementRoleId
-                ? `<@&${config.managementRoleId}>`
-                : 'Administrators only',
+              value:
+                [config.ownerRoleId, config.gmRoleId, config.agmRoleId, config.managementRoleId]
+                  .filter(Boolean)
+                  .map((id) => `<@&${id}>`)
+                  .join(' • ') || 'Administrators only',
               inline: true,
+            },
+            {
+              name: 'TEAM CHANNELS',
+              value: `Availability: ${config.teamAvailabilityChannelId ? `<#${config.teamAvailabilityChannelId}>` : 'Not configured'}\nAnnouncements: ${config.teamAnnouncementsChannelId ? `<#${config.teamAnnouncementsChannelId}>` : 'Not configured'}`,
+              inline: false,
             },
             { name: 'TIMEZONE', value: config.timezone, inline: true },
             {
@@ -85,6 +95,11 @@ export async function handleSetup(
       actorDiscordId: interaction.user.id,
       scoutingChannelId: scouting.id,
       managementChannelId: management?.id ?? null,
+      scoutingAnnouncementsChannelId:
+        interaction.options.getChannel('scouting_announcements')?.id ?? null,
+      teamAvailabilityChannelId: interaction.options.getChannel('availability')?.id ?? null,
+      teamAnnouncementsChannelId: interaction.options.getChannel('team_announcements')?.id ?? null,
+      rulesChannelId: interaction.options.getChannel('rules')?.id ?? null,
     });
   } else if (subcommand === 'roles') {
     const positionRoleIds = Object.fromEntries(
@@ -95,26 +110,63 @@ export async function handleSetup(
     await context.config.update({
       guildId: interaction.guildId,
       actorDiscordId: interaction.user.id,
-      managementRoleId: interaction.options.getRole('management', true).id,
+      ownerRoleId: interaction.options.getRole('owner')?.id ?? null,
+      gmRoleId: interaction.options.getRole('gm')?.id ?? null,
+      agmRoleId: interaction.options.getRole('agm')?.id ?? null,
+      rosterRoleId: interaction.options.getRole('roster')?.id ?? null,
+      tcRoleId: interaction.options.getRole('tc')?.id ?? null,
+      scoutRoleId: interaction.options.getRole('registered')?.id ?? null,
+      managementRoleId: interaction.options.getRole('management')?.id ?? null,
       registeredRoleId: interaction.options.getRole('registered')?.id ?? null,
       forwardRoleId: null,
       defenseRoleId: null,
       goalieRoleId: null,
       positionRoleIds,
     });
+  } else if (subcommand === 'schedule') {
+    const split = (name: string) =>
+      interaction.options
+        .getString(name, true)
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+    await context.schedule.configureSlots(
+      interaction.guildId,
+      interaction.user.id,
+      {
+        SUNDAY: split('sunday_times'),
+        MONDAY: split('monday_times'),
+        TUESDAY: split('tuesday_times'),
+      },
+      {
+        dayOffset: Number(interaction.options.getString('deadline_day', true)),
+        localTime: interaction.options.getString('deadline_time', true),
+      },
+    );
+    await context.config.update({
+      guildId: interaction.guildId,
+      actorDiscordId: interaction.user.id,
+      serverCodeReminderMinutes: interaction.options.getInteger('server_reminder') ?? 60,
+      notifyConfirmedGameInfo: interaction.options.getBoolean('notify_game_info') ?? true,
+    });
+  } else if (subcommand === 'availability') {
+    const reminderText = interaction.options.getString('reminders', true);
+    const reminders = parseReminders(reminderText, 10080);
+    await context.config.update({
+      guildId: interaction.guildId,
+      actorDiscordId: interaction.user.id,
+      availabilityReminderMinutes: reminders,
+      tcReminderPolicy: interaction.options.getString('tc_policy', true) as
+        'REQUIRED' | 'ENCOURAGED' | 'DISABLED',
+    });
   } else {
     const timezone = interaction.options.getString('timezone', true);
     if (!DateTime.now().setZone(timezone).isValid)
       throw new AppError('INVALID_INPUT', 'Use a valid IANA timezone such as `America/New_York`.');
     const reminderText = interaction.options.getString('reminders') ?? '60,15';
-    const reminders = [...new Set(reminderText.split(',').map(Number))]
-      .filter((value) => Number.isInteger(value) && value > 0 && value <= 1440)
-      .sort((a, b) => b - a);
-    if (!reminders.length)
-      throw new AppError(
-        'INVALID_INPUT',
-        'Reminder times must be comma-separated minutes, such as `60,15`.',
-      );
+    const reminders = parseReminders(reminderText, 1440);
+    const teamName = interaction.options.getString('team_name');
+    const seasonLabel = interaction.options.getString('season');
     await context.config.update({
       guildId: interaction.guildId,
       actorDiscordId: interaction.user.id,
@@ -122,10 +174,29 @@ export async function handleSetup(
       defaultFormat: 'PRIVATE_6V6',
       defaultDurationMinutes: 60,
       reminderMinutes: reminders,
+      ...(teamName ? { teamName } : {}),
+      ...(seasonLabel ? { seasonLabel } : {}),
     });
   }
   await interaction.reply({
     ephemeral: true,
-    embeds: [renderSuccess('Setup saved', 'Bench Boss configuration is stored and ready to use.')],
+    embeds: [
+      renderSuccess(
+        'Setup saved',
+        "Antkogg's LG Assistant configuration is stored and ready to use.",
+      ),
+    ],
   });
+}
+
+function parseReminders(value: string, maximum: number): number[] {
+  const reminders = [...new Set(value.split(',').map(Number))]
+    .filter((minutes) => Number.isInteger(minutes) && minutes > 0 && minutes <= maximum)
+    .sort((a, b) => b - a);
+  if (!reminders.length)
+    throw new AppError(
+      'INVALID_INPUT',
+      'Reminder times must be comma-separated minutes, such as `60,15`.',
+    );
+  return reminders;
 }

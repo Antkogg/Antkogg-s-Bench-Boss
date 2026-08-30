@@ -88,7 +88,10 @@ function fakeDatabase(
     player: {
       findFirst: async ({ where }: { where: { discordUserId?: string } }) =>
         players.find((player) => player.discordUserId === where.discordUserId) ?? null,
+      update: async () => players[0],
     },
+    playerActivity: { create: async () => ({}) },
+    auditLog: { create: async () => ({}) },
     scoutingAssignment: {
       findUnique: async ({ where }: { where: { sessionId_playerId: { playerId: string } } }) =>
         assignments.find((item) => item.playerId === where.sessionId_playerId.playerId) ?? null,

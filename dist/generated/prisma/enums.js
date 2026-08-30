@@ -80,4 +80,61 @@ export const NotificationType = {
     LINEUP_LOCKED: 'LINEUP_LOCKED',
     GAME_CANCELLED: 'GAME_CANCELLED'
 };
+export const TeamStatus = {
+    SCOUT: 'SCOUT',
+    TC: 'TC',
+    ROSTER: 'ROSTER',
+    MANAGEMENT: 'MANAGEMENT',
+    ALUMNI_INACTIVE: 'ALUMNI_INACTIVE'
+};
+export const TcStatus = {
+    UNRANKED: 'UNRANKED',
+    DEVELOPING: 'DEVELOPING',
+    WATCH: 'WATCH',
+    CALL_UP_READY: 'CALL_UP_READY',
+    ROSTER_PRIORITY: 'ROSTER_PRIORITY'
+};
+export const WeeklyAvailabilityStatus = {
+    DRAFT: 'DRAFT',
+    OPEN: 'OPEN',
+    LOCKED: 'LOCKED',
+    CLOSED: 'CLOSED'
+};
+export const TcReminderPolicy = {
+    REQUIRED: 'REQUIRED',
+    ENCOURAGED: 'ENCOURAGED',
+    DISABLED: 'DISABLED'
+};
+export const RuleDocumentKind = {
+    CONSTITUTION: 'CONSTITUTION',
+    PLAYOFF: 'PLAYOFF',
+    BUILD_RULES: 'BUILD_RULES',
+    DISCONNECT: 'DISCONNECT',
+    OTHER: 'OTHER'
+};
+export const SeasonStatus = {
+    ACTIVE: 'ACTIVE',
+    COMPLETED: 'COMPLETED',
+    ARCHIVED: 'ARCHIVED'
+};
+export const ScheduleDay = {
+    SUNDAY: 'SUNDAY',
+    MONDAY: 'MONDAY',
+    TUESDAY: 'TUESDAY',
+    OTHER: 'OTHER'
+};
+export const HomeAway = {
+    HOME: 'HOME',
+    AWAY: 'AWAY'
+};
+export const WeeklyGameStatus = {
+    SCHEDULED: 'SCHEDULED',
+    CANCELLED: 'CANCELLED',
+    COMPLETED: 'COMPLETED',
+    POSTPONED: 'POSTPONED'
+};
+export const GameAvailabilityStatus = {
+    AVAILABLE: 'AVAILABLE',
+    UNAVAILABLE: 'UNAVAILABLE'
+};
 //# sourceMappingURL=enums.js.map

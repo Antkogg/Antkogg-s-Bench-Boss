@@ -26,7 +26,10 @@ export class ScoutingPostService {
           const message = await textChannel.messages.fetch(session.messageId);
           await message.delete();
         } catch (error) {
-          logger.warn({ error, sessionId: session.id }, 'failed to delete cancelled session message');
+          logger.warn(
+            { error, sessionId: session.id },
+            'failed to delete cancelled session message',
+          );
         }
       }
       return;

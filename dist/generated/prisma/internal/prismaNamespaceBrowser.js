@@ -41,6 +41,21 @@ export const AnyNull = runtime.AnyNull;
 export const ModelName = {
     GuildConfig: 'GuildConfig',
     Player: 'Player',
+    ManagementProfile: 'ManagementProfile',
+    Season: 'Season',
+    SeasonWeek: 'SeasonWeek',
+    WeeklyGame: 'WeeklyGame',
+    StandardGameSlot: 'StandardGameSlot',
+    Opponent: 'Opponent',
+    WeeklyAvailabilitySubmission: 'WeeklyAvailabilitySubmission',
+    PlayerGameAvailability: 'PlayerGameAvailability',
+    WeeklyAvailabilityReminder: 'WeeklyAvailabilityReminder',
+    GameLineupAssignment: 'GameLineupAssignment',
+    GameManagementReminder: 'GameManagementReminder',
+    PlayerActivity: 'PlayerActivity',
+    RuleDocument: 'RuleDocument',
+    RuleDocumentVersion: 'RuleDocumentVersion',
+    RuleSection: 'RuleSection',
     ScoutingSession: 'ScoutingSession',
     ScoutingAssignment: 'ScoutingAssignment',
     WaitlistEntry: 'WaitlistEntry',
@@ -65,16 +80,35 @@ export const GuildConfigScalarFieldEnum = {
     guildId: 'guildId',
     timezone: 'timezone',
     managementRoleId: 'managementRoleId',
+    ownerRoleId: 'ownerRoleId',
+    gmRoleId: 'gmRoleId',
+    agmRoleId: 'agmRoleId',
+    rosterRoleId: 'rosterRoleId',
+    tcRoleId: 'tcRoleId',
+    scoutRoleId: 'scoutRoleId',
     registeredRoleId: 'registeredRoleId',
     forwardRoleId: 'forwardRoleId',
     defenseRoleId: 'defenseRoleId',
     goalieRoleId: 'goalieRoleId',
     positionRoleIds: 'positionRoleIds',
     scoutingChannelId: 'scoutingChannelId',
+    scoutingAnnouncementsChannelId: 'scoutingAnnouncementsChannelId',
+    teamAvailabilityChannelId: 'teamAvailabilityChannelId',
+    teamAnnouncementsChannelId: 'teamAnnouncementsChannelId',
     managementChannelId: 'managementChannelId',
+    rulesChannelId: 'rulesChannelId',
+    teamName: 'teamName',
+    seasonLabel: 'seasonLabel',
     defaultFormat: 'defaultFormat',
     defaultDurationMinutes: 'defaultDurationMinutes',
     reminderMinutes: 'reminderMinutes',
+    availabilityReminderMinutes: 'availabilityReminderMinutes',
+    availabilityDeadlineDayOffset: 'availabilityDeadlineDayOffset',
+    availabilityDeadlineLocalTime: 'availabilityDeadlineLocalTime',
+    availabilityOpeningNotices: 'availabilityOpeningNotices',
+    serverCodeReminderMinutes: 'serverCodeReminderMinutes',
+    notifyConfirmedGameInfo: 'notifyConfirmedGameInfo',
+    tcReminderPolicy: 'tcReminderPolicy',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
 };
@@ -92,8 +126,177 @@ export const PlayerScalarFieldEnum = {
     positionGroup: 'positionGroup',
     registered: 'registered',
     internalStatus: 'internalStatus',
+    teamStatus: 'teamStatus',
+    tcStatus: 'tcStatus',
+    lastRelevantActivityAt: 'lastRelevantActivityAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
+};
+export const ManagementProfileScalarFieldEnum = {
+    id: 'id',
+    guildConfigId: 'guildConfigId',
+    discordUserId: 'discordUserId',
+    timezone: 'timezone',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const SeasonScalarFieldEnum = {
+    id: 'id',
+    guildConfigId: 'guildConfigId',
+    number: 'number',
+    label: 'label',
+    status: 'status',
+    createdByDiscordId: 'createdByDiscordId',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const SeasonWeekScalarFieldEnum = {
+    id: 'id',
+    guildConfigId: 'guildConfigId',
+    seasonId: 'seasonId',
+    weekNumber: 'weekNumber',
+    label: 'label',
+    startsOn: 'startsOn',
+    deadline: 'deadline',
+    status: 'status',
+    channelId: 'channelId',
+    messageId: 'messageId',
+    openedAt: 'openedAt',
+    lockedAt: 'lockedAt',
+    createdByDiscordId: 'createdByDiscordId',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const WeeklyGameScalarFieldEnum = {
+    id: 'id',
+    weekId: 'weekId',
+    opponentId: 'opponentId',
+    label: 'label',
+    scheduledAtUtc: 'scheduledAtUtc',
+    localEntryTimezone: 'localEntryTimezone',
+    opponentNameSnapshot: 'opponentNameSnapshot',
+    homeAway: 'homeAway',
+    status: 'status',
+    gameServer: 'gameServer',
+    gameCode: 'gameCode',
+    serverCodeUpdatedAt: 'serverCodeUpdatedAt',
+    serverCodeUpdatedBy: 'serverCodeUpdatedBy',
+    notes: 'notes',
+    sortOrder: 'sortOrder',
+    createdByDiscordId: 'createdByDiscordId',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const StandardGameSlotScalarFieldEnum = {
+    id: 'id',
+    guildConfigId: 'guildConfigId',
+    day: 'day',
+    slotNumber: 'slotNumber',
+    localTime: 'localTime',
+    active: 'active',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const OpponentScalarFieldEnum = {
+    id: 'id',
+    guildConfigId: 'guildConfigId',
+    seasonId: 'seasonId',
+    name: 'name',
+    abbreviation: 'abbreviation',
+    active: 'active',
+    lgTeamId: 'lgTeamId',
+    teamUrl: 'teamUrl',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const WeeklyAvailabilitySubmissionScalarFieldEnum = {
+    id: 'id',
+    weekId: 'weekId',
+    playerId: 'playerId',
+    editedByDiscordId: 'editedByDiscordId',
+    submittedAt: 'submittedAt',
+    updatedAt: 'updatedAt'
+};
+export const PlayerGameAvailabilityScalarFieldEnum = {
+    submissionId: 'submissionId',
+    gameId: 'gameId',
+    status: 'status',
+    updatedByDiscordId: 'updatedByDiscordId',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const WeeklyAvailabilityReminderScalarFieldEnum = {
+    id: 'id',
+    weekId: 'weekId',
+    playerId: 'playerId',
+    scheduledFor: 'scheduledFor',
+    kind: 'kind',
+    sentAt: 'sentAt',
+    failedAt: 'failedAt',
+    createdAt: 'createdAt'
+};
+export const GameLineupAssignmentScalarFieldEnum = {
+    id: 'id',
+    gameId: 'gameId',
+    playerId: 'playerId',
+    position: 'position',
+    availabilityOverride: 'availabilityOverride',
+    assignedByDiscordId: 'assignedByDiscordId',
+    confirmed: 'confirmed',
+    confirmedAt: 'confirmedAt',
+    confirmationNotifiedAt: 'confirmationNotifiedAt',
+    gameInfoNotifiedAt: 'gameInfoNotifiedAt',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const GameManagementReminderScalarFieldEnum = {
+    id: 'id',
+    gameId: 'gameId',
+    scheduledFor: 'scheduledFor',
+    messageId: 'messageId',
+    sentAt: 'sentAt',
+    failedAt: 'failedAt',
+    createdAt: 'createdAt'
+};
+export const PlayerActivityScalarFieldEnum = {
+    id: 'id',
+    playerId: 'playerId',
+    kind: 'kind',
+    relatedType: 'relatedType',
+    relatedId: 'relatedId',
+    details: 'details',
+    occurredAt: 'occurredAt'
+};
+export const RuleDocumentScalarFieldEnum = {
+    id: 'id',
+    guildConfigId: 'guildConfigId',
+    key: 'key',
+    title: 'title',
+    kind: 'kind',
+    sourceUrl: 'sourceUrl',
+    seasonVersion: 'seasonVersion',
+    active: 'active',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const RuleDocumentVersionScalarFieldEnum = {
+    id: 'id',
+    documentId: 'documentId',
+    versionLabel: 'versionLabel',
+    sourceUrl: 'sourceUrl',
+    contentHash: 'contentHash',
+    active: 'active',
+    createdByDiscordId: 'createdByDiscordId',
+    createdAt: 'createdAt'
+};
+export const RuleSectionScalarFieldEnum = {
+    id: 'id',
+    versionId: 'versionId',
+    sectionKey: 'sectionKey',
+    title: 'title',
+    content: 'content',
+    searchText: 'searchText',
+    sortOrder: 'sortOrder'
 };
 export const ScoutingSessionScalarFieldEnum = {
     id: 'id',

@@ -1,7 +1,7 @@
 export const BRAND = {
-    name: "Antkogg's Bench Boss",
-    shortName: 'BENCH BOSS',
-    descriptor: 'LG Scouting & Management',
+    name: "Antkogg's LG Assistant",
+    shortName: 'LG ASSISTANT',
+    descriptor: 'Team Operations & Scouting',
     colors: {
         primary: 0x1f6feb,
         success: 0x2da44e,

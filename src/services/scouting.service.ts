@@ -113,6 +113,39 @@ export class ScoutingService {
             where: { sessionId: session.id, playerId: player.id },
             data: { status: 'PROMOTED' },
           });
+          await tx.player.update({
+            where: { id: player.id },
+            data: { lastRelevantActivityAt: new Date() },
+          });
+          await tx.playerActivity.create({
+            data: {
+              playerId: player.id,
+              kind: 'SCOUTING_SIGNUP',
+              relatedType: 'ScoutingSession',
+              relatedId: session.id,
+              details: { position: input.position },
+            },
+          });
+          if (
+            input.actorDiscordId &&
+            (input.eligibilityOverride === true || input.conflictOverride === true)
+          ) {
+            await tx.auditLog.create({
+              data: {
+                guildConfigId: session.guildConfigId,
+                actorDiscordId: input.actorDiscordId,
+                action: 'LINEUP_OVERRIDE',
+                targetType: 'ScoutingSession',
+                targetId: session.id,
+                details: {
+                  playerDiscordId: input.discordUserId,
+                  position: input.position,
+                  eligibilityOverride: input.eligibilityOverride === true,
+                  conflictOverride: input.conflictOverride === true,
+                },
+              },
+            });
+          }
           return { kind: 'created' as const };
         },
         { isolationLevel: 'Serializable' },
@@ -131,26 +164,6 @@ export class ScoutingService {
         },
         'scouting signup completed',
       );
-      if (
-        input.actorDiscordId &&
-        (input.eligibilityOverride === true || input.conflictOverride === true)
-      ) {
-        await this.prisma.auditLog.create({
-          data: {
-            guildConfigId: session.guildConfigId,
-            actorDiscordId: input.actorDiscordId,
-            action: 'LINEUP_OVERRIDE',
-            targetType: 'ScoutingSession',
-            targetId: session.id,
-            details: {
-              playerDiscordId: input.discordUserId,
-              position: input.position,
-              eligibilityOverride: input.eligibilityOverride === true,
-              conflictOverride: input.conflictOverride === true,
-            },
-          },
-        });
-      }
       return { session };
     } catch (error) {
       if (this.isUniqueConflict(error)) {
@@ -205,6 +218,19 @@ export class ScoutingService {
               eligibilityOverride: input.eligibilityOverride ?? false,
             },
           });
+          await tx.player.update({
+            where: { id: player.id },
+            data: { lastRelevantActivityAt: new Date() },
+          });
+          await tx.playerActivity.create({
+            data: {
+              playerId: player.id,
+              kind: 'SCOUTING_POSITION_SWITCHED',
+              relatedType: 'ScoutingSession',
+              relatedId: session.id,
+              details: { from: current.position, to: input.position },
+            },
+          });
         },
         { isolationLevel: 'Serializable' },
       );
@@ -246,6 +272,18 @@ export class ScoutingService {
       });
       if (!assignment) throw new AppError('NOT_FOUND', "You don't have a spot in that game.");
       await tx.scoutingAssignment.delete({ where: { id: assignment.id } });
+      await tx.player.update({
+        where: { id: player.id },
+        data: { lastRelevantActivityAt: new Date() },
+      });
+      await tx.playerActivity.create({
+        data: {
+          playerId: player.id,
+          kind: managementOverride ? 'LINEUP_REMOVAL' : 'SCOUTING_WITHDRAWAL',
+          relatedType: 'ScoutingSession',
+          relatedId: sessionId,
+        },
+      });
       return this.waitlists.offerNext(
         tx,
         sessionId,

@@ -94,74 +94,450 @@ enum NotificationType {
   GAME_CANCELLED
 }
 
-model GuildConfig {
-  id                    String        @id @default(cuid())
-  guildId               String        @unique
-  timezone              String        @default("America/New_York")
-  managementRoleId      String?
-  registeredRoleId      String?
-  forwardRoleId         String?
-  defenseRoleId         String?
-  goalieRoleId          String?
-  positionRoleIds       Json?
-  scoutingChannelId     String?
-  managementChannelId   String?
-  defaultFormat         SessionFormat @default(ONE_SIDE)
-  defaultDurationMinutes Int          @default(60)
-  reminderMinutes       Int[]         @default([60, 15])
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+enum TeamStatus {
+  SCOUT
+  TC
+  ROSTER
+  MANAGEMENT
+  ALUMNI_INACTIVE
+}
 
-  players  Player[]
-  sessions ScoutingSession[]
-  audits   AuditLog[]
+enum TcStatus {
+  UNRANKED
+  DEVELOPING
+  WATCH
+  CALL_UP_READY
+  ROSTER_PRIORITY
+}
+
+enum WeeklyAvailabilityStatus {
+  DRAFT
+  OPEN
+  LOCKED
+  CLOSED
+}
+
+enum TcReminderPolicy {
+  REQUIRED
+  ENCOURAGED
+  DISABLED
+}
+
+enum RuleDocumentKind {
+  CONSTITUTION
+  PLAYOFF
+  BUILD_RULES
+  DISCONNECT
+  OTHER
+}
+
+enum SeasonStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ScheduleDay {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  OTHER
+}
+
+enum HomeAway {
+  HOME
+  AWAY
+}
+
+enum WeeklyGameStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+  POSTPONED
+}
+
+enum GameAvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+model GuildConfig {
+  id                             String           @id @default(cuid())
+  guildId                        String           @unique
+  timezone                       String           @default("America/New_York")
+  managementRoleId               String?
+  ownerRoleId                    String?
+  gmRoleId                       String?
+  agmRoleId                      String?
+  rosterRoleId                   String?
+  tcRoleId                       String?
+  scoutRoleId                    String?
+  registeredRoleId               String?
+  forwardRoleId                  String?
+  defenseRoleId                  String?
+  goalieRoleId                   String?
+  positionRoleIds                Json?
+  scoutingChannelId              String?
+  scoutingAnnouncementsChannelId String?
+  teamAvailabilityChannelId      String?
+  teamAnnouncementsChannelId     String?
+  managementChannelId            String?
+  rulesChannelId                 String?
+  teamName                       String           @default("Boston University")
+  seasonLabel                    String           @default("S55")
+  defaultFormat                  SessionFormat    @default(ONE_SIDE)
+  defaultDurationMinutes         Int              @default(60)
+  reminderMinutes                Int[]            @default([60, 15])
+  availabilityReminderMinutes    Int[]            @default([1440, 360])
+  availabilityDeadlineDayOffset  Int              @default(-1)
+  availabilityDeadlineLocalTime  String           @default("20:00")
+  availabilityOpeningNotices     Boolean          @default(false)
+  serverCodeReminderMinutes      Int              @default(60)
+  notifyConfirmedGameInfo        Boolean          @default(true)
+  tcReminderPolicy               TcReminderPolicy @default(ENCOURAGED)
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
+
+  players            Player[]
+  sessions           ScoutingSession[]
+  audits             AuditLog[]
+  seasonWeeks        SeasonWeek[]
+  seasons            Season[]
+  opponents          Opponent[]
+  scheduleSlots      StandardGameSlot[]
+  managementProfiles ManagementProfile[]
+  ruleDocuments      RuleDocument[]
 }
 
 model Player {
-  id                 String               @id @default(cuid())
-  guildConfigId      String
-  discordUserId      String
-  discordDisplayName String
-  discordAvatarUrl   String?
-  lgUsername         String
-  lgUsernameNormalized String
-  eaTag              String
-  eaTagNormalized    String
-  signupPositions    SignupPosition[]
-  positionGroup      PositionGroup
-  registered         Boolean              @default(true)
-  internalStatus     InternalPlayerStatus @default(UNSCOUTED)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  id                     String               @id @default(cuid())
+  guildConfigId          String
+  discordUserId          String
+  discordDisplayName     String
+  discordAvatarUrl       String?
+  lgUsername             String
+  lgUsernameNormalized   String
+  eaTag                  String
+  eaTagNormalized        String
+  signupPositions        SignupPosition[]
+  positionGroup          PositionGroup
+  registered             Boolean              @default(true)
+  internalStatus         InternalPlayerStatus @default(UNSCOUTED)
+  teamStatus             TeamStatus           @default(SCOUT)
+  tcStatus               TcStatus             @default(UNRANKED)
+  lastRelevantActivityAt DateTime             @default(now())
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
 
-  guildConfig  GuildConfig          @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
-  assignments  ScoutingAssignment[]
-  waitlists    WaitlistEntry[]
-  attendance   Attendance[]
-  evaluations  Evaluation[]
-  notes        PlayerNote[]
-  availability Availability[]
+  guildConfig           GuildConfig                    @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  assignments           ScoutingAssignment[]
+  waitlists             WaitlistEntry[]
+  attendance            Attendance[]
+  evaluations           Evaluation[]
+  notes                 PlayerNote[]
+  availability          Availability[]
+  weeklyAvailability    WeeklyAvailabilitySubmission[]
+  availabilityReminders WeeklyAvailabilityReminder[]
+  gameLineups           GameLineupAssignment[]
+  activities            PlayerActivity[]
 
   @@unique([guildConfigId, discordUserId])
   @@unique([guildConfigId, eaTagNormalized])
   @@index([guildConfigId, lgUsernameNormalized])
 }
 
-model ScoutingSession {
-  id               String         @id @default(cuid())
-  guildConfigId    String
-  startsAt         DateTime
-  durationMinutes  Int
-  format           SessionFormat
-  signupMode       SignupMode     @default(OPEN_SIGNUP)
-  status           SessionStatus  @default(OPEN)
-  signupsOpen      Boolean        @default(true)
-  note             String?
-  channelId        String?
-  messageId        String?
+model ManagementProfile {
+  id            String   @id @default(cuid())
+  guildConfigId String
+  discordUserId String
+  timezone      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  guildConfig GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([guildConfigId, discordUserId])
+  @@index([discordUserId])
+}
+
+model Season {
+  id                 String       @id @default(cuid())
+  guildConfigId      String
+  number             Int
+  label              String
+  status             SeasonStatus @default(ACTIVE)
   createdByDiscordId String
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  guildConfig GuildConfig  @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  weeks       SeasonWeek[]
+  opponents   Opponent[]
+
+  @@unique([guildConfigId, number])
+  @@index([guildConfigId, status])
+}
+
+model SeasonWeek {
+  id                 String                   @id @default(cuid())
+  guildConfigId      String
+  seasonId           String?
+  weekNumber         Int?
+  label              String
+  startsOn           DateTime?
+  deadline           DateTime
+  status             WeeklyAvailabilityStatus @default(DRAFT)
+  channelId          String?
+  messageId          String?
+  openedAt           DateTime?
+  lockedAt           DateTime?
+  createdByDiscordId String
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  guildConfig GuildConfig                    @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  season      Season?                        @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  games       WeeklyGame[]
+  submissions WeeklyAvailabilitySubmission[]
+  reminders   WeeklyAvailabilityReminder[]
+
+  @@unique([guildConfigId, label])
+  @@unique([seasonId, weekNumber])
+  @@index([guildConfigId, status, deadline])
+}
+
+model WeeklyGame {
+  id                   String           @id @default(cuid())
+  weekId               String
+  opponentId           String?
+  label                String
+  scheduledAtUtc       DateTime
+  localEntryTimezone   String
+  opponentNameSnapshot String?
+  homeAway             HomeAway?
+  status               WeeklyGameStatus @default(SCHEDULED)
+  gameServer           String?
+  gameCode             String?
+  serverCodeUpdatedAt  DateTime?
+  serverCodeUpdatedBy  String?
+  notes                String?
+  sortOrder            Int              @default(0)
+  createdByDiscordId   String
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  week                SeasonWeek               @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  opponent            Opponent?                @relation(fields: [opponentId], references: [id], onDelete: SetNull)
+  responses           PlayerGameAvailability[]
+  lineup              GameLineupAssignment[]
+  managementReminders GameManagementReminder[]
+
+  @@index([weekId, scheduledAtUtc])
+  @@index([status, scheduledAtUtc])
+}
+
+model StandardGameSlot {
+  id            String      @id @default(cuid())
+  guildConfigId String
+  day           ScheduleDay
+  slotNumber    Int
+  localTime     String
+  active        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  guildConfig GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([guildConfigId, day, slotNumber])
+  @@index([guildConfigId, active, day])
+}
+
+model Opponent {
+  id            String   @id @default(cuid())
+  guildConfigId String
+  seasonId      String?
+  name          String
+  abbreviation  String?
+  active        Boolean  @default(true)
+  lgTeamId      String?
+  teamUrl       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  guildConfig GuildConfig  @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  season      Season?      @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  games       WeeklyGame[]
+
+  @@unique([guildConfigId, seasonId, name])
+  @@index([guildConfigId, active, name])
+}
+
+model WeeklyAvailabilitySubmission {
+  id                String   @id @default(cuid())
+  weekId            String
+  playerId          String
+  editedByDiscordId String?
+  submittedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  week      SeasonWeek               @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  player    Player                   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  responses PlayerGameAvailability[]
+
+  @@unique([weekId, playerId])
+  @@index([playerId, submittedAt])
+}
+
+model PlayerGameAvailability {
+  submissionId       String
+  gameId             String
+  status             GameAvailabilityStatus @default(AVAILABLE)
+  updatedByDiscordId String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  submission WeeklyAvailabilitySubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  game       WeeklyGame                   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([submissionId, gameId])
+  @@index([gameId])
+  @@map("WeeklyAvailabilitySelection")
+}
+
+model WeeklyAvailabilityReminder {
+  id           String    @id @default(cuid())
+  weekId       String
+  playerId     String
+  scheduledFor DateTime
+  kind         String    @default("DEADLINE")
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+
+  week   SeasonWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  player Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([weekId, playerId, kind, scheduledFor])
+  @@index([sentAt, failedAt, scheduledFor])
+}
+
+model GameLineupAssignment {
+  id                     String           @id @default(cuid())
+  gameId                 String
+  playerId               String
+  position               ScoutingPosition
+  availabilityOverride   Boolean          @default(false)
+  assignedByDiscordId    String
+  confirmed              Boolean          @default(false)
+  confirmedAt            DateTime?
+  confirmationNotifiedAt DateTime?
+  gameInfoNotifiedAt     DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  game   WeeklyGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, playerId])
+  @@unique([gameId, position])
+  @@index([playerId, confirmed, createdAt])
+}
+
+model GameManagementReminder {
+  id           String    @id @default(cuid())
+  gameId       String
+  scheduledFor DateTime
+  messageId    String?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+
+  game WeeklyGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, scheduledFor])
+  @@index([sentAt, failedAt, scheduledFor])
+}
+
+model PlayerActivity {
+  id          String   @id @default(cuid())
+  playerId    String
+  kind        String
+  relatedType String?
+  relatedId   String?
+  details     Json?
+  occurredAt  DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, occurredAt])
+  @@index([kind, occurredAt])
+}
+
+model RuleDocument {
+  id            String           @id @default(cuid())
+  guildConfigId String
+  key           String
+  title         String
+  kind          RuleDocumentKind
+  sourceUrl     String?
+  seasonVersion String?
+  active        Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  guildConfig GuildConfig           @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+  versions    RuleDocumentVersion[]
+
+  @@unique([guildConfigId, key])
+  @@index([guildConfigId, active, kind])
+}
+
+model RuleDocumentVersion {
+  id                 String   @id @default(cuid())
+  documentId         String
+  versionLabel       String
+  sourceUrl          String?
+  contentHash        String
+  active             Boolean  @default(true)
+  createdByDiscordId String
+  createdAt          DateTime @default(now())
+
+  document RuleDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sections RuleSection[]
+
+  @@unique([documentId, versionLabel])
+  @@index([documentId, active, createdAt])
+}
+
+model RuleSection {
+  id         String  @id @default(cuid())
+  versionId  String
+  sectionKey String?
+  title      String?
+  content    String
+  searchText String
+  sortOrder  Int     @default(0)
+
+  version RuleDocumentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId, sortOrder])
+}
+
+model ScoutingSession {
+  id                 String        @id @default(cuid())
+  guildConfigId      String
+  startsAt           DateTime
+  durationMinutes    Int
+  format             SessionFormat
+  signupMode         SignupMode    @default(OPEN_SIGNUP)
+  status             SessionStatus @default(OPEN)
+  signupsOpen        Boolean       @default(true)
+  note               String?
+  channelId          String?
+  messageId          String?
+  createdByDiscordId String
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   guildConfig  GuildConfig          @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
   assignments  ScoutingAssignment[]
@@ -175,17 +551,17 @@ model ScoutingSession {
 }
 
 model ScoutingAssignment {
-  id                 String            @id @default(cuid())
-  sessionId          String
-  playerId           String
-  team               LineupTeam        @default(TEAM_1)
-  position           ScoutingPosition
-  slotIndex          Int               @default(0)
+  id                  String           @id @default(cuid())
+  sessionId           String
+  playerId            String
+  team                LineupTeam       @default(TEAM_1)
+  position            ScoutingPosition
+  slotIndex           Int              @default(0)
   eligibilityOverride Boolean          @default(false)
-  conflictOverride   Boolean           @default(false)
+  conflictOverride    Boolean          @default(false)
   assignedByDiscordId String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -196,18 +572,18 @@ model ScoutingAssignment {
 }
 
 model WaitlistEntry {
-  id                String         @id @default(cuid())
+  id                String            @id @default(cuid())
   sessionId         String
   playerId          String
   positionGroup     PositionGroup
   preferredPosition ScoutingPosition?
   queueOrder        Int
-  status            WaitlistStatus @default(WAITING)
+  status            WaitlistStatus    @default(WAITING)
   offeredPosition   ScoutingPosition?
-  offerToken        String?        @unique
+  offerToken        String?           @unique
   offerExpiresAt    DateTime?
-  joinedAt          DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  joinedAt          DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -230,13 +606,13 @@ model Availability {
 }
 
 model Attendance {
-  id          String           @id @default(cuid())
-  sessionId   String
-  playerId    String
-  status      AttendanceStatus
-  recordedBy  String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id         String           @id @default(cuid())
+  sessionId  String
+  playerId   String
+  status     AttendanceStatus
+  recordedBy String
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
   session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -245,18 +621,18 @@ model Attendance {
 }
 
 model Evaluation {
-  id            String   @id @default(cuid())
-  playerId      String
+  id                 String   @id @default(cuid())
+  playerId           String
   evaluatorDiscordId String
-  overall       Int
-  offense       Int
-  defense       Int
-  hockeyIq      Int
-  puckMovement  Int
-  communication Int
-  privateNote   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  overall            Int
+  offense            Int
+  defense            Int
+  hockeyIq           Int
+  puckMovement       Int
+  communication      Int
+  privateNote        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
@@ -277,14 +653,14 @@ model PlayerNote {
 }
 
 model ReminderDispatch {
-  id              String           @id @default(cuid())
-  sessionId       String
-  playerId        String
+  id               String           @id @default(cuid())
+  sessionId        String
+  playerId         String
   notificationType NotificationType
-  scheduledFor    DateTime
-  sentAt          DateTime?
-  failedAt        DateTime?
-  createdAt       DateTime         @default(now())
+  scheduledFor     DateTime
+  sentAt           DateTime?
+  failedAt         DateTime?
+  createdAt        DateTime         @default(now())
 
   session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -293,14 +669,14 @@ model ReminderDispatch {
 }
 
 model AuditLog {
-  id               String   @id @default(cuid())
-  guildConfigId    String
-  actorDiscordId   String
-  action           String
-  targetType       String
-  targetId         String
-  details          Json?
-  createdAt        DateTime @default(now())
+  id             String   @id @default(cuid())
+  guildConfigId  String
+  actorDiscordId String
+  action         String
+  targetType     String
+  targetId       String
+  details        Json?
+  createdAt      DateTime @default(now())
 
   guildConfig GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
 

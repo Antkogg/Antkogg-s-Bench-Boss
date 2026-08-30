@@ -12,7 +12,7 @@ export function renderUnregisteredProfile() {
   return {
     embeds: [
       brandedEmbed()
-        .setTitle('WELCOME TO BENCH BOSS')
+        .setTitle("WELCOME TO ANTKOGG'S LG ASSISTANT")
         .setDescription('Register once, then every scouting signup is a single click.')
         .addFields(
           {

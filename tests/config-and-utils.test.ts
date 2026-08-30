@@ -23,6 +23,18 @@ describe('configuration and identity safety', () => {
     ).toBe('test');
   });
 
+  it('treats a blank optional guild ID as unset for production env files', () => {
+    expect(
+      loadEnv({
+        NODE_ENV: 'production',
+        DISCORD_TOKEN: 'secret',
+        DISCORD_CLIENT_ID: '1234',
+        DISCORD_GUILD_ID: '',
+        DATABASE_URL: 'postgresql://user:pass@neon.example/db?sslmode=require',
+      }).DISCORD_GUILD_ID,
+    ).toBeUndefined();
+  });
+
   it('round-trips deterministic restart-safe custom IDs', () => {
     const id = customId('signup', 'session123', 'C');
     expect(parseCustomId(id)).toEqual({ action: 'signup', entityId: 'session123', value: 'C' });

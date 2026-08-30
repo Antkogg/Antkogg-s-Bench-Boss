@@ -1,0 +1,28 @@
+[Unit]
+Description=Antkogg's LG Assistant Discord bot
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=lgassistant
+Group=lgassistant
+WorkingDirectory=/opt/antkoggs-lg-assistant
+EnvironmentFile=/etc/antkoggs-lg-assistant.env
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=384
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

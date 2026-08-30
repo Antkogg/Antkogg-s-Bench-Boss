@@ -16,22 +16,24 @@ export class ConfigService {
     async update(input) {
         const { guildId, actorDiscordId, ...values } = input;
         const data = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
-        const config = await this.prisma.guildConfig.upsert({
-            where: { guildId },
-            update: data,
-            create: { guildId, ...data },
+        return this.prisma.$transaction(async (tx) => {
+            const config = await tx.guildConfig.upsert({
+                where: { guildId },
+                update: data,
+                create: { guildId, ...data },
+            });
+            await tx.auditLog.create({
+                data: {
+                    guildConfigId: config.id,
+                    actorDiscordId,
+                    action: 'CONFIG_UPDATED',
+                    targetType: 'GuildConfig',
+                    targetId: config.id,
+                    details: data,
+                },
+            });
+            return config;
         });
-        await this.prisma.auditLog.create({
-            data: {
-                guildConfigId: config.id,
-                actorDiscordId,
-                action: 'CONFIG_UPDATED',
-                targetType: 'GuildConfig',
-                targetId: config.id,
-                details: data,
-            },
-        });
-        return config;
     }
 }
 //# sourceMappingURL=config.service.js.map

@@ -46,6 +46,12 @@ export class EvaluationService {
         notes: { orderBy: { createdAt: 'desc' }, take: 10 },
         attendance: true,
         assignments: { include: { session: true }, orderBy: { createdAt: 'desc' }, take: 20 },
+        weeklyAvailability: {
+          include: { week: true, selections: { include: { game: true } } },
+          orderBy: { submittedAt: 'desc' },
+          take: 10,
+        },
+        activities: { orderBy: { occurredAt: 'desc' }, take: 20 },
       },
     });
     if (!player) throw new AppError('NOT_FOUND', 'Player not found.');

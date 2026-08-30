@@ -10,6 +10,10 @@ import type { PlayerService } from '../services/player.service.js';
 import type { RoleService } from '../services/role.service.js';
 import type { ScoutingPostService } from '../services/scouting-post.service.js';
 import type { ScoutingService } from '../services/scouting.service.js';
+import type { WeeklyAvailabilityService } from '../services/weekly-availability.service.js';
+import type { TeamService } from '../services/team.service.js';
+import type { RulesService } from '../services/rules.service.js';
+import type { ScheduleService } from '../services/schedule.service.js';
 
 export interface BotContext {
   client: Client;
@@ -23,5 +27,9 @@ export interface BotContext {
   attendance: AttendanceService;
   evaluations: EvaluationService;
   availability: AvailabilityService;
+  weeklyAvailability: WeeklyAvailabilityService;
+  team: TeamService;
+  rules: RulesService;
+  schedule: ScheduleService;
   board: BoardService;
 }

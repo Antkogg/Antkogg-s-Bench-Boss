@@ -6,8 +6,10 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
     ephemeral: true,
     embeds: [
       brandedEmbed()
-        .setTitle('HOW BENCH BOSS WORKS')
-        .setDescription('Powerful behind the scenes. Effortless inside Discord.')
+        .setTitle("HOW ANTKOGG'S LG ASSISTANT WORKS")
+        .setDescription(
+          'Scouting, weekly availability, team operations, and official rule references—inside Discord.',
+        )
         .addFields(
           {
             name: '1 • REGISTER',
@@ -19,13 +21,29 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
             value: 'Tap an eligible position. You are confirmed immediately and receive a DM.',
           },
           {
+            name: '4 • WEEKLY AVAILABILITY',
+            value:
+              'Use the current availability post to answer every game, or run `/availability mine` to review your week.',
+          },
+          {
+            name: '5 • GAME DAY',
+            value:
+              'After management confirms you, run `/game` for your position, opponent, server, and code.',
+          },
+          {
             name: 'CHANGE OF PLANS?',
             value:
               'Tap another position to switch, or **Leave Game**. Waitlists automatically get the next opportunity.',
           },
           {
+            name: 'OFFICIAL RULES',
+            value:
+              'Use `/rules`, `/rule search`, `/builds`, or `/disconnect`. The bot cites configured official sources and does not guess.',
+          },
+          {
             name: 'MANAGEMENT',
-            value: '`/scout create` • `/scout manage` • `/player` • `/board` • `/setup`',
+            value:
+              '`/timezone` • `/week` • `/availability manage` • `/game` • `/scout` • `/player` • `/setup`',
           },
         ),
     ],

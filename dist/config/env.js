@@ -4,7 +4,7 @@ const envSchema = z.object({
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
     DISCORD_CLIENT_ID: z.string().regex(/^\d+$/, 'DISCORD_CLIENT_ID must be a Discord snowflake'),
-    DISCORD_GUILD_ID: z.string().regex(/^\d+$/).optional(),
+    DISCORD_GUILD_ID: z.preprocess((value) => (value === '' ? undefined : value), z.string().regex(/^\d+$/, 'DISCORD_GUILD_ID must be a Discord snowflake').optional()),
     DATABASE_URL: z
         .url()
         .refine((url) => url.startsWith('postgres://') || url.startsWith('postgresql://'), {
@@ -15,7 +15,7 @@ export function loadEnv(source = process.env) {
     const result = envSchema.safeParse(source);
     if (!result.success) {
         const lines = result.error.issues.map((issue) => `- ${issue.path.join('.')}: ${issue.message}`);
-        throw new Error(`Bench Boss cannot start because configuration is invalid:\n${lines.join('\n')}`);
+        throw new Error(`Antkogg's LG Assistant cannot start because configuration is invalid:\n${lines.join('\n')}`);
     }
     return result.data;
 }

@@ -33,37 +33,40 @@ export function renderManagementPanel(session: ScoutingSessionView) {
           },
         ),
     ],
-    components: session.status === 'CANCELLED' || session.status === 'COMPLETED' ? [] : [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(customId('manage-action', session.id, 'lineup'))
-          .setPlaceholder('Choose a lineup action')
-          .addOptions(
-            {
-              label: 'Add Player',
-              value: 'add',
-              description: 'Add with optional eligibility/conflict override',
-            },
-            { label: 'Remove Player', value: 'remove' },
-            { label: 'Move Player', value: 'move' },
-            { label: 'Swap Players', value: 'swap' },
-            { label: 'View Waitlist', value: 'waitlist' },
-          ),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        ...actions.slice(0, 5).map(([value, label]) =>
-          new ButtonBuilder()
-            .setCustomId(customId('manage-action', session.id, value))
-            .setLabel(label)
-            .setStyle(value === 'start' ? ButtonStyle.Success : ButtonStyle.Secondary),
-        ),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(customId('manage-action', session.id, 'cancel'))
-          .setLabel('Cancel Session')
-          .setStyle(ButtonStyle.Danger),
-      ),
-    ],
+    components:
+      session.status === 'CANCELLED' || session.status === 'COMPLETED'
+        ? []
+        : [
+            new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(customId('manage-action', session.id, 'lineup'))
+                .setPlaceholder('Choose a lineup action')
+                .addOptions(
+                  {
+                    label: 'Add Player',
+                    value: 'add',
+                    description: 'Add with optional eligibility/conflict override',
+                  },
+                  { label: 'Remove Player', value: 'remove' },
+                  { label: 'Move Player', value: 'move' },
+                  { label: 'Swap Players', value: 'swap' },
+                  { label: 'View Waitlist', value: 'waitlist' },
+                ),
+            ),
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              ...actions.slice(0, 5).map(([value, label]) =>
+                new ButtonBuilder()
+                  .setCustomId(customId('manage-action', session.id, value))
+                  .setLabel(label)
+                  .setStyle(value === 'start' ? ButtonStyle.Success : ButtonStyle.Secondary),
+              ),
+            ),
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(customId('manage-action', session.id, 'cancel'))
+                .setLabel('Cancel Session')
+                .setStyle(ButtonStyle.Danger),
+            ),
+          ],
   };
 }

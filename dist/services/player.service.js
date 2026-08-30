@@ -27,36 +27,43 @@ export class PlayerService {
             throw new AppError('INVALID_INPUT', 'That EA Tag is already registered. Ask management for help.');
         }
         try {
-            return await this.prisma.player.upsert({
-                where: {
-                    guildConfigId_discordUserId: {
+            return await this.prisma.$transaction(async (tx) => {
+                const player = await tx.player.upsert({
+                    where: {
+                        guildConfigId_discordUserId: {
+                            guildConfigId: config.id,
+                            discordUserId: input.discordUserId,
+                        },
+                    },
+                    update: {
+                        discordDisplayName: cleanDisplayValue(input.discordDisplayName, 80),
+                        discordAvatarUrl: input.discordAvatarUrl ?? null,
+                        lgUsername,
+                        lgUsernameNormalized: normalizeIdentity(lgUsername),
+                        eaTag,
+                        eaTagNormalized: normalizeIdentity(eaTag),
+                        signupPositions: input.signupPositions,
+                        positionGroup: groupForSignupPositions(input.signupPositions),
+                        registered: true,
+                        lastRelevantActivityAt: new Date(),
+                    },
+                    create: {
                         guildConfigId: config.id,
                         discordUserId: input.discordUserId,
+                        discordDisplayName: cleanDisplayValue(input.discordDisplayName, 80),
+                        discordAvatarUrl: input.discordAvatarUrl ?? null,
+                        lgUsername,
+                        lgUsernameNormalized: normalizeIdentity(lgUsername),
+                        eaTag,
+                        eaTagNormalized: normalizeIdentity(eaTag),
+                        signupPositions: input.signupPositions,
+                        positionGroup: groupForSignupPositions(input.signupPositions),
                     },
-                },
-                update: {
-                    discordDisplayName: cleanDisplayValue(input.discordDisplayName, 80),
-                    discordAvatarUrl: input.discordAvatarUrl ?? null,
-                    lgUsername,
-                    lgUsernameNormalized: normalizeIdentity(lgUsername),
-                    eaTag,
-                    eaTagNormalized: normalizeIdentity(eaTag),
-                    signupPositions: input.signupPositions,
-                    positionGroup: groupForSignupPositions(input.signupPositions),
-                    registered: true,
-                },
-                create: {
-                    guildConfigId: config.id,
-                    discordUserId: input.discordUserId,
-                    discordDisplayName: cleanDisplayValue(input.discordDisplayName, 80),
-                    discordAvatarUrl: input.discordAvatarUrl ?? null,
-                    lgUsername,
-                    lgUsernameNormalized: normalizeIdentity(lgUsername),
-                    eaTag,
-                    eaTagNormalized: normalizeIdentity(eaTag),
-                    signupPositions: input.signupPositions,
-                    positionGroup: groupForSignupPositions(input.signupPositions),
-                },
+                });
+                await tx.playerActivity.create({
+                    data: { playerId: player.id, kind: 'PROFILE_REGISTERED_OR_UPDATED' },
+                });
+                return player;
             });
         }
         catch (error) {

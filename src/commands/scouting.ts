@@ -66,8 +66,8 @@ export async function handleScout(
     throw new AppError('NOT_ALLOWED', 'Use this command in the server.');
   const config = await context.config.ensure(interaction.guildId);
   const member = await interaction.guild!.members.fetch(interaction.user.id);
-  if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-    throw new AppError('NOT_ALLOWED', 'This command is for Bench Boss management.');
+  if (!hasManagementAccess(accessLevel(member, config)))
+    throw new AppError('NOT_ALLOWED', 'This command is for LG Assistant management.');
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === 'upcoming') return handleScoutingBrowser(interaction, context);
   if (subcommand === 'create') {
@@ -78,14 +78,19 @@ export async function handleScout(
       );
     const dateStr = interaction.options.getString('date', true);
     const timeStr = interaction.options.getString('time', true);
-    
+
     let starts = DateTime.now().setZone(config.timezone);
     if (dateStr === 'Tomorrow') {
       starts = starts.plus({ days: 1 });
     } else if (dateStr !== 'Today') {
       const targetDayMap: Record<string, number> = {
-        Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4,
-        Friday: 5, Saturday: 6, Sunday: 7
+        Monday: 1,
+        Tuesday: 2,
+        Wednesday: 3,
+        Thursday: 4,
+        Friday: 5,
+        Saturday: 6,
+        Sunday: 7,
       };
       const targetDay = targetDayMap[dateStr];
       if (targetDay) {
@@ -109,7 +114,10 @@ export async function handleScout(
         if (pmMatch[3].toLowerCase() === 'pm' && hours < 12) hours += 12;
         if (pmMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
       } else {
-        throw new AppError('INVALID_INPUT', 'Please select a valid time from the dropdown suggestions.');
+        throw new AppError(
+          'INVALID_INPUT',
+          'Please select a valid time from the dropdown suggestions.',
+        );
       }
     }
 
@@ -118,7 +126,10 @@ export async function handleScout(
     if (!starts.isValid)
       throw new AppError('INVALID_INPUT', 'Failed to parse the selected date and time.');
     if (starts.toMillis() < Date.now() - 60_000)
-      throw new AppError('INVALID_INPUT', 'Scouting must start in the future. Check your time selection.');
+      throw new AppError(
+        'INVALID_INPUT',
+        'Scouting must start in the future. Check your time selection.',
+      );
     await interaction.deferReply({ ephemeral: true });
     const title = interaction.options.getString('title');
     const session = await context.scouting.create({

@@ -12,8 +12,8 @@ export async function handleManagementButton(interaction, context, parsed) {
         context.config.ensure(interaction.guildId),
         interaction.guild.members.fetch(interaction.user.id),
     ]);
-    if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-        throw new AppError('NOT_ALLOWED', 'This control is private to Bench Boss management.');
+    if (!hasManagementAccess(accessLevel(member, config)))
+        throw new AppError('NOT_ALLOWED', 'This control is private to LG Assistant management.');
     if (parsed.action === 'manage') {
         const session = await context.scouting.get(parsed.entityId);
         if (!session)

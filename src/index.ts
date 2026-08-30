@@ -1,23 +1,35 @@
 import 'dotenv/config';
-import { createBenchBossApp } from './bot/client.js';
+import { createLgAssistantApp } from './bot/client.js';
 import { loadEnv } from './config/env.js';
 import { disconnectPrisma } from './database/client.js';
 import { logger } from './utils/logger.js';
 
 try {
   const env = loadEnv();
-  const app = createBenchBossApp(env);
+  const app = createLgAssistantApp(env);
+  let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     logger.info({ signal }, 'shutting down');
     app.reminders.stop();
-    await app.client.destroy();
-    await disconnectPrisma();
-    process.exit(0);
+    app.availabilityReminders.stop();
+    app.gameDayReminders.stop();
+    const results = await Promise.allSettled([
+      Promise.resolve(app.client.destroy()),
+      disconnectPrisma(),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected')
+        logger.error({ error: result.reason }, 'graceful shutdown operation failed');
+    }
+    logger.info('shutdown complete');
+    process.exit(results.some((result) => result.status === 'rejected') ? 1 : 0);
   };
   process.once('SIGINT', () => void shutdown('SIGINT'));
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
   await app.client.login(env.DISCORD_TOKEN);
 } catch (error) {
-  logger.fatal({ error }, 'Bench Boss failed to start');
+  logger.fatal({ error }, "Antkogg's LG Assistant failed to start");
   process.exitCode = 1;
 }

@@ -10,8 +10,8 @@ export async function handleSelectMenu(interaction, context, parsed) {
         context.config.ensure(interaction.guildId),
         interaction.guild.members.fetch(interaction.user.id),
     ]);
-    if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-        throw new AppError('NOT_ALLOWED', 'This menu is private to Bench Boss management.');
+    if (!hasManagementAccess(accessLevel(member, config)))
+        throw new AppError('NOT_ALLOWED', 'This menu is private to LG Assistant management.');
     if (parsed.action === 'manage-action' && parsed.value === 'lineup') {
         const value = interaction.values[0];
         if (['add', 'remove', 'move', 'swap'].includes(value ?? '')) {

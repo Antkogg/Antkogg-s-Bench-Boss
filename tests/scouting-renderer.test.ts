@@ -24,16 +24,35 @@ function session(overrides: Partial<ScoutingSessionView> = {}): ScoutingSessionV
       guildId: 'guild1',
       timezone: 'America/New_York',
       managementRoleId: null,
+      ownerRoleId: null,
+      gmRoleId: null,
+      agmRoleId: null,
+      rosterRoleId: null,
+      tcRoleId: null,
+      scoutRoleId: null,
       registeredRoleId: null,
       forwardRoleId: null,
       defenseRoleId: null,
       goalieRoleId: null,
       positionRoleIds: null,
       scoutingChannelId: '100',
+      scoutingAnnouncementsChannelId: null,
+      teamAvailabilityChannelId: null,
+      teamAnnouncementsChannelId: null,
       managementChannelId: null,
+      rulesChannelId: null,
+      teamName: 'Boston University',
+      seasonLabel: 'S55',
       defaultFormat: 'ONE_SIDE',
       defaultDurationMinutes: 60,
       reminderMinutes: [60, 15],
+      availabilityReminderMinutes: [1440, 360],
+      availabilityDeadlineDayOffset: -1,
+      availabilityDeadlineLocalTime: '20:00',
+      availabilityOpeningNotices: false,
+      serverCodeReminderMinutes: 60,
+      notifyConfirmedGameInfo: true,
+      tcReminderPolicy: 'ENCOURAGED',
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -68,7 +87,12 @@ function assignment(
       discordAvatarUrl: null,
       lgUsername: eaTag,
       lgUsernameNormalized: eaTag.toLowerCase(),
-      signupPositions: position === 'G' ? ['G'] : position === 'LD' || position === 'RD' ? ['LD', 'RD'] : ['LW', 'C', 'RW'],
+      signupPositions:
+        position === 'G'
+          ? ['G']
+          : position === 'LD' || position === 'RD'
+            ? ['LD', 'RD']
+            : ['LW', 'C', 'RW'],
       positionGroup:
         position === 'G'
           ? 'GOALIE'

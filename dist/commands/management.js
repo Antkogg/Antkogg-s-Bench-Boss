@@ -1,32 +1,52 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, } from 'discord.js';
-import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { capacity } from '../domain/scouting.js';
 import { brandedEmbed, discordTimestamp } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
-async function requireManagement(interaction, context) {
-    if (!interaction.guildId || !interaction.guild)
-        throw new AppError('NOT_ALLOWED', 'Use this command in the server.');
-    const [config, member] = await Promise.all([
-        context.config.ensure(interaction.guildId),
-        interaction.guild.members.fetch(interaction.user.id),
-    ]);
-    if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-        throw new AppError('NOT_ALLOWED', 'This view is private to Bench Boss management.');
-}
+import { requireManagement } from './authorization.js';
 export async function handlePlayerSearch(interaction, context) {
     await requireManagement(interaction, context);
     const players = await context.players.search(interaction.guildId, interaction.options.getString('query', true));
     if (!players.length)
         throw new AppError('NOT_FOUND', 'No matching player was found.');
     const selected = players[0];
-    const view = await context.evaluations.playerView(selected.id);
+    const requestedTeamStatus = interaction.options.getString('team_status');
+    const requestedTcStatus = interaction.options.getString('tc_status');
+    let current = selected;
+    if (requestedTeamStatus) {
+        current = await context.team.setTeamStatus(selected.id, requestedTeamStatus, interaction.user.id);
+        if (interaction.guild) {
+            try {
+                const member = await interaction.guild.members.fetch(current.discordUserId);
+                const config = await context.config.ensure(interaction.guildId);
+                await context.roles.sync(member, current, config);
+            }
+            catch {
+                // Database status remains authoritative if the Discord member/role is unavailable.
+            }
+        }
+    }
+    if (requestedTcStatus)
+        current = await context.team.setTcStatus(selected.id, requestedTcStatus, interaction.user.id);
+    const view = await context.evaluations.playerView(current.id);
     const played = view.attendance.filter((item) => item.status === 'PLAYED').length;
+    const noShows = view.attendance.filter((item) => item.status === 'NO_SHOW').length;
+    const availabilityRate = view.weeklyAvailability.length
+        ? `${view.weeklyAvailability.length} week(s) submitted`
+        : 'No weekly availability history';
     await interaction.reply({
         ephemeral: true,
         embeds: [
             brandedEmbed()
                 .setTitle('PLAYER • MANAGEMENT')
-                .addFields({ name: 'EA TAG', value: `\`${view.eaTag}\``, inline: true }, { name: 'LG', value: `${view.lgUsername} • ${view.signupPositions.join('/')}`, inline: true }, { name: 'SCOUTING', value: `${played} Played`, inline: true }, { name: 'STATUS', value: view.internalStatus, inline: true }, {
+                .addFields({ name: 'EA TAG', value: `\`${view.eaTag}\``, inline: true }, {
+                name: 'LG',
+                value: `${view.lgUsername} • ${view.signupPositions.join('/')}`,
+                inline: true,
+            }, { name: 'SCOUTING', value: `${played} Played`, inline: true }, { name: 'TEAM STATUS', value: view.teamStatus, inline: true }, { name: 'SCOUTING STATUS', value: view.internalStatus, inline: true }, { name: 'TC STATUS', value: view.tcStatus, inline: true }, { name: 'ATTENDANCE', value: `${played} played • ${noShows} no-show`, inline: true }, { name: 'AVAILABILITY', value: availabilityRate, inline: true }, {
+                name: 'LAST ACTIVITY',
+                value: `<t:${Math.floor(view.lastRelevantActivityAt.getTime() / 1000)}:R>`,
+                inline: true,
+            }, {
                 name: 'PRIVATE RECORD',
                 value: `${view.evaluations.length} recent evaluations • ${view.notes.length} recent notes`,
             }),

@@ -18,17 +18,15 @@ export async function handleManagementButton(
     context.config.ensure(interaction.guildId),
     interaction.guild.members.fetch(interaction.user.id),
   ]);
-  if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-    throw new AppError('NOT_ALLOWED', 'This control is private to Bench Boss management.');
+  if (!hasManagementAccess(accessLevel(member, config)))
+    throw new AppError('NOT_ALLOWED', 'This control is private to LG Assistant management.');
   if (parsed.action === 'manage') {
     const session = await context.scouting.get(parsed.entityId);
     if (!session) throw new AppError('NOT_FOUND', 'Session not found.');
     await interaction.reply({ ephemeral: true, ...renderManagementPanel(session) });
     return;
   }
-  if (
-    ['add', 'move', 'remove', 'swap', 'note', 'evaluate'].includes(parsed.value ?? '')
-  )
+  if (['add', 'move', 'remove', 'swap', 'note', 'evaluate'].includes(parsed.value ?? ''))
     return showManagementModal(interaction, parsed);
   if (parsed.value === 'history') {
     const view = await context.evaluations.playerView(parsed.entityId);

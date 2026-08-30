@@ -86,10 +86,7 @@ export function renderScoutingSession(session: ScoutingSessionView) {
   const embed = brandedEmbed(STATUS_COLORS[session.status])
     .setTitle(`${titleText}  •  ${signupState}`)
     .setDescription(
-      [
-        `## ${discordTimestamp(session.startsAt, 'F')}`,
-        discordTimestamp(session.startsAt, 'R'),
-      ]
+      [`## ${discordTimestamp(session.startsAt, 'F')}`, discordTimestamp(session.startsAt, 'R')]
         .filter(Boolean)
         .join('\n'),
     )

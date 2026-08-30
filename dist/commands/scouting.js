@@ -44,8 +44,8 @@ export async function handleScout(interaction, context) {
         throw new AppError('NOT_ALLOWED', 'Use this command in the server.');
     const config = await context.config.ensure(interaction.guildId);
     const member = await interaction.guild.members.fetch(interaction.user.id);
-    if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-        throw new AppError('NOT_ALLOWED', 'This command is for Bench Boss management.');
+    if (!hasManagementAccess(accessLevel(member, config)))
+        throw new AppError('NOT_ALLOWED', 'This command is for LG Assistant management.');
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === 'upcoming')
         return handleScoutingBrowser(interaction, context);
@@ -60,8 +60,13 @@ export async function handleScout(interaction, context) {
         }
         else if (dateStr !== 'Today') {
             const targetDayMap = {
-                Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4,
-                Friday: 5, Saturday: 6, Sunday: 7
+                Monday: 1,
+                Tuesday: 2,
+                Wednesday: 3,
+                Thursday: 4,
+                Friday: 5,
+                Saturday: 6,
+                Sunday: 7,
             };
             const targetDay = targetDayMap[dateStr];
             if (targetDay) {

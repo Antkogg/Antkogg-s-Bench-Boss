@@ -15,7 +15,7 @@ function textInput(customIdValue, label, placeholder, maxLength, style = TextInp
 export async function showRegistrationModal(interaction) {
     await interaction.showModal(new ModalBuilder()
         .setCustomId(customId('modal-register', interaction.guildId ?? 'dm'))
-        .setTitle('Bench Boss Registration')
+        .setTitle('LG Assistant Registration')
         .addComponents(textInput('lgUsername', 'LG username', 'Your exact Leaguegaming username', 32), textInput('eaTag', 'Exact EA Tag', 'Capitalization and spaces matter', 32), textInput('position', 'LG signup positions', 'e.g. LW, C or LD, RD', 20)));
 }
 export async function handleRegistrationModal(interaction, context) {
@@ -54,7 +54,7 @@ export async function handleRegistrationModal(interaction, context) {
     await context.roles.sync(member, player, config);
     await interaction.editReply({
         embeds: [
-            renderSuccess('Registration complete', `Welcome to Bench Boss, **${player.eaTag}**.\nYour scouting buttons are ready.`),
+            renderSuccess('Registration complete', `Welcome to Antkogg's LG Assistant, **${player.eaTag}**.\nYour scouting and team tools are ready.`),
         ],
     });
 }
@@ -62,7 +62,7 @@ export async function showManagementModal(interaction, parsed) {
     const kind = parsed.value ?? 'edit';
     const modal = new ModalBuilder()
         .setCustomId(customId('modal-manage', parsed.entityId, kind))
-        .setTitle('Bench Boss Management');
+        .setTitle('LG Assistant Management');
     if (kind === 'add') {
         modal.addComponents(textInput('player', 'Player Discord ID or exact EA Tag', 'Searchable registered player', 40), textInput('position', 'Position', 'LW, C, RW, LD, RD, or G', 2), textInput('overrides', 'Overrides (optional)', 'ELIGIBILITY, CONFLICT, BOTH, or NONE', 20));
     }
@@ -98,8 +98,8 @@ export async function handleManagementModal(interaction, context, parsed) {
         context.config.ensure(interaction.guildId),
         interaction.guild.members.fetch(interaction.user.id),
     ]);
-    if (!hasManagementAccess(accessLevel(member, config.managementRoleId)))
-        throw new AppError('NOT_ALLOWED', 'This action is private to Bench Boss management.');
+    if (!hasManagementAccess(accessLevel(member, config)))
+        throw new AppError('NOT_ALLOWED', 'This action is private to LG Assistant management.');
     const kind = parsed.value;
     if (!kind)
         throw new AppError('INVALID_INPUT', 'Management action is missing.');

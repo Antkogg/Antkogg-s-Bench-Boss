@@ -57,10 +57,7 @@ export function renderScoutingSession(session) {
     const titleText = session.note ? session.note : format;
     const embed = brandedEmbed(STATUS_COLORS[session.status])
         .setTitle(`${titleText}  •  ${signupState}`)
-        .setDescription([
-        `## ${discordTimestamp(session.startsAt, 'F')}`,
-        discordTimestamp(session.startsAt, 'R'),
-    ]
+        .setDescription([`## ${discordTimestamp(session.startsAt, 'F')}`, discordTimestamp(session.startsAt, 'R')]
         .filter(Boolean)
         .join('\n'))
         .addFields(...teamFields(session, 'TEAM_1', session.format === 'PRIVATE_6V6' ? 'TEAM 1' : undefined));

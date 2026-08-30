@@ -36,6 +36,34 @@ describe('permissions and notification payloads', () => {
     expect(hasManagementAccess('ADMIN')).toBe(true);
   });
 
+  it.each(['owner', 'gm', 'agm', 'legacy'])(
+    'grants management access through the configured %s role',
+    (role) => {
+      expect(
+        accessLevel(member(false, [role]), {
+          ownerRoleId: 'owner',
+          gmRoleId: 'gm',
+          agmRoleId: 'agm',
+          managementRoleId: 'legacy',
+        }),
+      ).toBe('MANAGEMENT');
+    },
+  );
+
+  it.each(['roster', 'tc', 'scout'])(
+    'does not grant management access through the %s player role',
+    (role) => {
+      expect(
+        accessLevel(member(false, [role]), {
+          ownerRoleId: 'owner',
+          gmRoleId: 'gm',
+          agmRoleId: 'agm',
+          managementRoleId: null,
+        }),
+      ).toBe('PLAYER');
+    },
+  );
+
   it('builds signup DMs independently from the live Discord client', () => {
     const embed = renderSignupConfirmation(session, 'C', 'xX AnTkOgG Xx').toJSON();
     expect(JSON.stringify(embed)).toContain("YOU'RE CONFIRMED");
