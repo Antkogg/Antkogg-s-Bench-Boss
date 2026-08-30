@@ -43,7 +43,12 @@ export async function handleAvailability(
   const subcommand = interaction.options.getSubcommand();
   const week = await resolveWeek(interaction, context);
   if (subcommand === 'mine') {
-    const player = await context.players.byDiscordId(interaction.guildId, interaction.user.id);
+    const player = await context.players.byDiscordId(
+      interaction.guildId,
+      interaction.user.id,
+      interaction.user.displayName ?? interaction.user.username,
+      interaction.user.displayAvatarURL(),
+    );
     await interaction.reply({ ephemeral: true, ...renderPlayerWeek(week, player.id) });
     return;
   }

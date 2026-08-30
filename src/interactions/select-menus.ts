@@ -7,6 +7,7 @@ import type { InternalPlayerStatus } from '../generated/prisma/enums.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { showManagementModal } from './modals.js';
 import { signupPositionLabel } from '../domain/positions.js';
+import { renderManagementPanel } from '../renderers/management.renderer.js';
 
 export async function handleSelectMenu(
   interaction: StringSelectMenuInteraction,
@@ -21,6 +22,21 @@ export async function handleSelectMenu(
   ]);
   if (!hasManagementAccess(accessLevel(member, config)))
     throw new AppError('NOT_ALLOWED', 'This menu is private to LG Assistant management.');
+  if (parsed.action === 'manage-action' && parsed.value === 'confirm-pool') {
+    const rawValue = interaction.values[0];
+    if (!rawValue) throw new AppError('INVALID_INPUT', 'No player selected.');
+    const [targetDiscordUserId, targetPosition] = rawValue.split('.');
+    const session = await context.scouting.assignLineupPlayer({
+      guildId: interaction.guildId,
+      sessionId: parsed.entityId,
+      discordUserId: targetDiscordUserId!,
+      position: (targetPosition as any) ?? 'LW',
+      actorDiscordId: interaction.user.id,
+    });
+    await context.posts.queueRefresh(session.id);
+    await interaction.update(renderManagementPanel(session));
+    return;
+  }
   if (parsed.action === 'manage-action' && parsed.value === 'lineup') {
     const value = interaction.values[0];
     if (['add', 'remove', 'move', 'swap'].includes(value ?? '')) {

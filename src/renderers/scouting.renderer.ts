@@ -58,6 +58,30 @@ function teamFields(
   return fields;
 }
 
+function poolText(session: ScoutingSessionView): string {
+  const pool = session.availability ?? [];
+  if (!pool.length) return '*No signups in pool yet.*';
+
+  const positions: ScoutingPosition[] = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
+  const grouped: string[] = [];
+
+  for (const pos of positions) {
+    const entries = pool.filter((item) => item.position === pos);
+    if (entries.length > 0) {
+      const names = entries.map((item) => `\`${item.player.eaTag}\``).join(', ');
+      grouped.push(`**${pos}** (${entries.length}): ${names}`);
+    }
+  }
+
+  const unassigned = pool.filter((item) => !item.position);
+  if (unassigned.length > 0) {
+    const names = unassigned.map((item) => `\`${item.player.eaTag}\``).join(', ');
+    grouped.push(`**General** (${unassigned.length}): ${names}`);
+  }
+
+  return grouped.join('\n') || '*No signups in pool yet.*';
+}
+
 function needsText(session: ScoutingSessionView): string {
   const remaining = remainingByGroup(
     session.format,
@@ -74,7 +98,7 @@ function needsText(session: ScoutingSessionView): string {
   return needs.length ? needs.join('  •  ') : '✓ Lineup full';
 }
 
-export function renderScoutingSession(session: ScoutingSessionView) {
+export function renderScoutingSession(session: ScoutingSessionView, viewerDiscordUserId?: string) {
   const total = capacity(session.format);
   const count = session.assignments.length;
   const format = session.format === 'ONE_SIDE' ? 'LG SCOUTING' : 'PRIVATE 6V6';
@@ -83,6 +107,7 @@ export function renderScoutingSession(session: ScoutingSessionView) {
       ? 'SIGNUPS CLOSED'
       : STATUS_LABELS[session.status];
   const titleText = session.note ? session.note : format;
+  const poolCount = (session.availability ?? []).length;
   const embed = brandedEmbed(STATUS_COLORS[session.status])
     .setTitle(`${titleText}  •  ${signupState}`)
     .setDescription(
@@ -98,28 +123,34 @@ export function renderScoutingSession(session: ScoutingSessionView) {
   embed
     .addFields(
       {
-        name: `${count === total ? '✓ ' : ''}${count} / ${total} CONFIRMED`,
+        name: `${count === total ? '✓ ' : ''}${count} / ${total} CONFIRMED STARTERS`,
         value: needsText(session),
         inline: false,
       },
       {
-        name: 'HOW TO JOIN',
+        name: `SIGNUP POOL (${poolCount} Interested)`,
+        value: poolText(session),
+        inline: false,
+      },
+      {
+        name: 'HOW TO SIGN UP',
         value:
           session.status === 'OPEN' && session.signupsOpen
             ? session.signupMode === 'AVAILABILITY'
               ? 'Tap **I’m Available**. Management will build the lineup from the availability pool.'
-              : 'Choose an eligible position below. Your exact EA Tag appears immediately.'
+              : 'Tap a position below (**LW**, **C**, **RW**, **LD**, **RD**, **G**) to join or switch in the signup pool. Management will confirm starters for the lineup.'
             : 'The lineup is preserved here. Player controls are currently disabled.',
         inline: false,
       },
     )
     .setTimestamp(session.updatedAt);
 
-  return { embeds: [embed], components: scoutingComponents(session) };
+  return { embeds: [embed], components: scoutingComponents(session, viewerDiscordUserId) };
 }
 
 export function scoutingComponents(
   session: ScoutingSessionView,
+  viewerDiscordUserId?: string,
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const active = session.status === 'OPEN' && session.signupsOpen;
   const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
@@ -127,25 +158,27 @@ export function scoutingComponents(
     ['LW', 'C', 'RW'],
     ['LD', 'RD', 'G'],
   ];
+
+  const userPoolEntry = viewerDiscordUserId
+    ? (session.availability ?? []).find((item) => item.player.discordUserId === viewerDiscordUserId)
+    : null;
+
   for (const positions of positionRows) {
     const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
     for (const position of positions) {
-      const occupied = session.assignments.filter(
-        (assignment) => assignment.position === position,
-      ).length;
-      const positionCapacity = session.format === 'PRIVATE_6V6' ? 2 : 1;
+      const isSelected = userPoolEntry?.position === position;
       row.addComponents(
         new ButtonBuilder()
           .setCustomId(customId('signup', session.id, position))
-          .setLabel(position)
+          .setLabel(isSelected ? `✓ ${position}` : position)
           .setStyle(
-            groupForScoutingPosition(position) === 'GOALIE'
-              ? ButtonStyle.Primary
-              : ButtonStyle.Secondary,
+            isSelected
+              ? ButtonStyle.Success
+              : groupForScoutingPosition(position) === 'GOALIE'
+                ? ButtonStyle.Primary
+                : ButtonStyle.Secondary,
           )
-          .setDisabled(
-            !active || session.signupMode === 'AVAILABILITY' || occupied >= positionCapacity,
-          ),
+          .setDisabled(!active || session.signupMode === 'AVAILABILITY'),
       );
     }
     rows.push(row);
@@ -170,32 +203,6 @@ export function scoutingComponents(
     );
   }
   rows.push(leave);
-  if (session.signupMode === 'OPEN_SIGNUP' && active) {
-    const groups = [
-      ['FORWARD', ['LW', 'C', 'RW'], 'Forward Waitlist'],
-      ['DEFENSE', ['LD', 'RD'], 'Defense Waitlist'],
-      ['GOALIE', ['G'], 'Goalie Waitlist'],
-    ] as const;
-    const fullGroups = groups.filter(([, positions]) =>
-      positions.every(
-        (position) =>
-          session.assignments.filter((assignment) => assignment.position === position).length >=
-          (session.format === 'PRIVATE_6V6' ? 2 : 1),
-      ),
-    );
-    if (fullGroups.length) {
-      rows.push(
-        new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-          ...fullGroups.map(([group, , label]) =>
-            new ButtonBuilder()
-              .setCustomId(customId('waitlist', session.id, `${group}.`))
-              .setLabel(label)
-              .setStyle(ButtonStyle.Primary),
-          ),
-        ),
-      );
-    }
-  }
   return rows;
 }
 

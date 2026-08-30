@@ -13,7 +13,12 @@ export async function handleProfile(
       'Profiles are server-specific. Use this command in the server.',
     );
   try {
-    const profile = await context.players.profile(interaction.guildId, interaction.user.id);
+    const profile = await context.players.profile(
+      interaction.guildId,
+      interaction.user.id,
+      interaction.user.displayName ?? interaction.user.username,
+      interaction.user.displayAvatarURL(),
+    );
     await interaction.reply({ ephemeral: true, ...renderPlayerProfile(profile) });
   } catch (error) {
     if (error instanceof AppError && error.code === 'NOT_REGISTERED') {

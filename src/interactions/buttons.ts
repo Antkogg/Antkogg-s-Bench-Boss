@@ -32,53 +32,23 @@ export async function handleButton(
     const result = await context.scouting.signup({
       guildId: interaction.guildId,
       discordUserId: interaction.user.id,
+      discordDisplayName: interaction.user.displayName ?? interaction.user.username,
+      discordAvatarUrl: interaction.user.displayAvatarURL(),
       sessionId: parsed.entityId,
       position,
     });
-    if (result.previousPosition) {
-      await interaction.reply({
-        ephemeral: true,
-        embeds: [
-          renderWarning(
-            'Switch position?',
-            `You're currently playing **${result.previousPosition}**. Switch to **${position}**?`,
-          ),
-        ],
-        components: [
-          new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(customId('switch-confirm', parsed.entityId, position))
-              .setLabel(`Switch to ${position}`)
-              .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-              .setCustomId(customId('switch', parsed.entityId, 'keep'))
-              .setLabel(`Keep ${result.previousPosition}`)
-              .setStyle(ButtonStyle.Secondary),
-          ),
-        ],
-      });
-      return;
-    }
     await context.posts.queueRefresh(parsed.entityId);
-    const player = result.session.assignments.find(
-      (assignment) => assignment.player.discordUserId === interaction.user.id,
-    )?.player;
-    const dmSent = player
-      ? await context.notifications.signup(
-          interaction.user.id,
-          result.session,
-          position,
-          player.eaTag,
-        )
-      : false;
+
+    const message =
+      result.action === 'added'
+        ? `Added to the **${position}** signup pool. Management will confirm starters for the lineup.`
+        : result.action === 'switched'
+          ? `Switched your signup pool position to **${position}**.`
+          : `Removed from the **${position}** signup pool.`;
+
     await interaction.reply({
       ephemeral: true,
-      embeds: [
-        renderSuccess(
-          `Confirmed at ${position}`,
-          `${dmSent ? 'Your confirmation is in your DMs.' : "I couldn't DM you, but your spot is confirmed."}\n${result.session.messageId ? `[Open the lineup](https://discord.com/channels/${interaction.guildId}/${result.session.channelId}/${result.session.messageId})` : ''}`,
-        ),
-      ],
+      embeds: [renderSuccess('Signup Pool Updated', message)],
     });
     return;
   }
@@ -91,6 +61,8 @@ export async function handleButton(
     const session = await context.scouting.switchPosition({
       guildId: interaction.guildId,
       discordUserId: interaction.user.id,
+      discordDisplayName: interaction.user.displayName ?? interaction.user.username,
+      discordAvatarUrl: interaction.user.displayAvatarURL(),
       sessionId: parsed.entityId,
       position,
     });
@@ -175,6 +147,8 @@ export async function handleButton(
       parsed.entityId,
       group as Parameters<typeof context.scouting.joinWaitlist>[3],
       position as ScoutingPosition | undefined,
+      interaction.user.displayName ?? interaction.user.username,
+      interaction.user.displayAvatarURL(),
     );
     const session = await context.scouting.get(parsed.entityId);
     if (session)
@@ -240,7 +214,12 @@ export async function handleButton(
     return;
   }
   if (parsed.action === 'availability') {
-    const player = await context.players.byDiscordId(interaction.guildId, interaction.user.id);
+    const player = await context.players.byDiscordId(
+      interaction.guildId,
+      interaction.user.id,
+      interaction.user.displayName ?? interaction.user.username,
+      interaction.user.displayAvatarURL(),
+    );
     const existing = await context.prisma.availability.findUnique({
       where: { sessionId_playerId: { sessionId: parsed.entityId, playerId: player.id } },
     });

@@ -80,11 +80,30 @@ function fakeDatabase(
       eaTag: 'Goalie',
     },
   ];
+  const availabilities: { id: string; sessionId: string; playerId: string; position: ScoutingPosition | null }[] = [];
   const assignments: FakeAssignment[] = [...(options.existing ?? [])];
   const waitlists: FakeWaitlist[] = [];
   const tx = {
-    guildConfig: { findUnique: async () => config },
+    guildConfig: { findUnique: async () => config, upsert: async () => config },
     scoutingSession: { findUnique: async () => session },
+    availability: {
+      findUnique: async ({ where }: { where: { sessionId_playerId: { playerId: string } } }) =>
+        availabilities.find((item) => item.playerId === where.sessionId_playerId.playerId) ?? null,
+      create: async ({ data }: any) => {
+        const item = { id: `av${availabilities.length + 1}`, ...data };
+        availabilities.push(item);
+        return item;
+      },
+      update: async ({ where, data }: any) => {
+        const item = availabilities.find((a) => a.id === where.id)!;
+        Object.assign(item, data);
+        return item;
+      },
+      delete: async ({ where }: any) => {
+        const idx = availabilities.findIndex((a) => a.id === where.id);
+        return availabilities.splice(idx, 1)[0];
+      },
+    },
     player: {
       findFirst: async ({ where }: { where: { discordUserId?: string } }) =>
         players.find((player) => player.discordUserId === where.discordUserId) ?? null,
@@ -94,7 +113,7 @@ function fakeDatabase(
     auditLog: { create: async () => ({}) },
     scoutingAssignment: {
       findUnique: async ({ where }: { where: { sessionId_playerId: { playerId: string } } }) =>
-        assignments.find((item) => item.playerId === where.sessionId_playerId.playerId) ?? null,
+        assignments.find((item) => item.playerId === where.sessionId_playerId?.playerId) ?? null,
       findMany: async ({
         where,
       }: {
@@ -108,6 +127,16 @@ function fakeDatabase(
             },
           ];
         return assignments.filter((item) => !where.position || item.position === where.position);
+      },
+      upsert: async ({ create, update, where }: any) => {
+        const existing = assignments.find((item) => item.playerId === where.sessionId_playerId?.playerId || item.id === where.id);
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const created = { ...create, id: `a${assignments.length + 1}`, slotIndex: 0 };
+        assignments.push(created);
+        return created;
       },
       create: async ({ data }: { data: FakeAssignment }) => {
         if (
@@ -171,11 +200,19 @@ function fakeDatabase(
   const prisma = {
     $transaction: async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
     guildConfig: tx.guildConfig,
+    availability: tx.availability,
+    player: tx.player,
+    playerActivity: tx.playerActivity,
+    scoutingAssignment: tx.scoutingAssignment,
     scoutingSession: {
       findUnique: async () => ({
         ...session,
         guildConfig: config,
         assignments: assignments.map((item) => ({
+          ...item,
+          player: players.find((player) => player.id === item.playerId),
+        })),
+        availability: availabilities.map((item) => ({
           ...item,
           player: players.find((player) => player.id === item.playerId),
         })),
@@ -191,35 +228,31 @@ function fakeDatabase(
     },
     auditLog: { create: async () => ({}) },
   } as unknown as PrismaClient;
-  return { service: new ScoutingService(prisma), assignments, waitlists, session };
+  return { service: new ScoutingService(prisma), assignments, availabilities, waitlists, session };
 }
 
 describe('scouting service signup', () => {
-  it('atomically claims an eligible open position', async () => {
-    const { service, assignments } = fakeDatabase();
+  it('adds player to the signup pool for a position', async () => {
+    const { service, availabilities } = fakeDatabase();
     const result = await service.signup({
       guildId: 'guild1',
       discordUserId: 'u1',
       sessionId: 's1',
       position: 'C',
     });
-    expect(result.previousPosition).toBeUndefined();
-    expect(assignments).toHaveLength(1);
-    expect(assignments[0]?.position).toBe('C');
+    expect(result.action).toBe('added');
+    expect(result.position).toBe('C');
+    expect(availabilities).toHaveLength(1);
+    expect(availabilities[0]?.position).toBe('C');
   });
 
-  it("rejects a goalie's skater signup server-side", async () => {
-    const { service } = fakeDatabase();
-    await expect(
-      service.signup({ guildId: 'guild1', discordUserId: 'ug', sessionId: 's1', position: 'C' }),
-    ).rejects.toMatchObject({ code: 'INELIGIBLE_POSITION' });
-  });
-
-  it('returns a switch prompt rather than duplicating an existing signup', async () => {
-    const { service, assignments } = fakeDatabase({
-      existing: [
-        { id: 'a1', sessionId: 's1', playerId: 'p1', team: 'TEAM_1', position: 'C', slotIndex: 0 },
-      ],
+  it('switches pool position when signing up for a different position', async () => {
+    const { service, availabilities } = fakeDatabase();
+    await service.signup({
+      guildId: 'guild1',
+      discordUserId: 'u1',
+      sessionId: 's1',
+      position: 'C',
     });
     const result = await service.signup({
       guildId: 'guild1',
@@ -227,8 +260,27 @@ describe('scouting service signup', () => {
       sessionId: 's1',
       position: 'RW',
     });
-    expect(result.previousPosition).toBe('C');
-    expect(assignments).toHaveLength(1);
+    expect(result.action).toBe('switched');
+    expect(result.position).toBe('RW');
+    expect(availabilities[0]?.position).toBe('RW');
+  });
+
+  it('toggles player off when clicking the same position again', async () => {
+    const { service, availabilities } = fakeDatabase();
+    await service.signup({
+      guildId: 'guild1',
+      discordUserId: 'u1',
+      sessionId: 's1',
+      position: 'C',
+    });
+    const result = await service.signup({
+      guildId: 'guild1',
+      discordUserId: 'u1',
+      sessionId: 's1',
+      position: 'C',
+    });
+    expect(result.action).toBe('removed');
+    expect(availabilities).toHaveLength(0);
   });
 
   it.each([
@@ -242,22 +294,37 @@ describe('scouting service signup', () => {
     ).rejects.toMatchObject({ code });
   });
 
-  it('rejects schedule conflicts but permits an audited management override', async () => {
+  it('allows management to confirm a player into starting lineup', async () => {
+    const { service, assignments } = fakeDatabase();
+    await service.assignLineupPlayer({
+      guildId: 'guild1',
+      sessionId: 's1',
+      discordUserId: 'u1',
+      position: 'C',
+      actorDiscordId: 'manager',
+    });
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0]?.position).toBe('C');
+  });
+
+  it('rejects schedule conflicts during management lineup assignment unless overridden', async () => {
     const conflict = fakeDatabase({ conflicting: true });
     await expect(
-      conflict.service.signup({
+      conflict.service.assignLineupPlayer({
         guildId: 'guild1',
-        discordUserId: 'u1',
         sessionId: 's1',
+        discordUserId: 'u1',
         position: 'C',
+        actorDiscordId: 'manager',
       }),
     ).rejects.toMatchObject({ code: 'SCHEDULE_CONFLICT' });
+
     const override = fakeDatabase({ conflicting: true });
     await expect(
-      override.service.signup({
+      override.service.assignLineupPlayer({
         guildId: 'guild1',
-        discordUserId: 'u1',
         sessionId: 's1',
+        discordUserId: 'u1',
         position: 'C',
         conflictOverride: true,
         actorDiscordId: 'manager',
@@ -265,34 +332,7 @@ describe('scouting service signup', () => {
     ).resolves.toBeDefined();
   });
 
-  it('allows exactly one winner when two players race for the final slot', async () => {
-    const { service, assignments } = fakeDatabase();
-    const outcomes = await Promise.allSettled([
-      service.signup({ guildId: 'guild1', discordUserId: 'u1', sessionId: 's1', position: 'C' }),
-      service.signup({ guildId: 'guild1', discordUserId: 'u2', sessionId: 's1', position: 'C' }),
-    ]);
-    expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
-    expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
-    expect(assignments.filter((item) => item.position === 'C')).toHaveLength(1);
-  });
-
-  it('switches position transactionally without creating a second assignment', async () => {
-    const { service, assignments } = fakeDatabase({
-      existing: [
-        { id: 'a1', sessionId: 's1', playerId: 'p1', team: 'TEAM_1', position: 'C', slotIndex: 0 },
-      ],
-    });
-    await service.switchPosition({
-      guildId: 'guild1',
-      discordUserId: 'u1',
-      sessionId: 's1',
-      position: 'RW',
-    });
-    expect(assignments).toHaveLength(1);
-    expect(assignments[0]?.position).toBe('RW');
-  });
-
-  it('leaving releases the assignment', async () => {
+  it('leaving releases the confirmed assignment', async () => {
     const { service, assignments } = fakeDatabase({
       existing: [
         { id: 'a1', sessionId: 's1', playerId: 'p1', team: 'TEAM_1', position: 'C', slotIndex: 0 },
@@ -300,18 +340,6 @@ describe('scouting service signup', () => {
     });
     await service.leave('guild1', 'u1', 's1');
     expect(assignments).toHaveLength(0);
-  });
-
-  it('uses one position-group queue and promotes its first compatible player', async () => {
-    const { service, waitlists } = fakeDatabase({
-      existing: [
-        { id: 'a1', sessionId: 's1', playerId: 'p1', team: 'TEAM_1', position: 'C', slotIndex: 0 },
-      ],
-    });
-    await service.joinWaitlist('guild1', 'u2', 's1', 'FORWARD', 'RW');
-    const result = await service.leave('guild1', 'u1', 's1');
-    expect(result.offeredWaitlistId).toBe(waitlists[0]?.id);
-    expect(waitlists[0]).toMatchObject({ status: 'OFFERED', offeredPosition: 'C' });
   });
 
   it('starts a partial lineup without requiring full capacity', async () => {

@@ -7,6 +7,7 @@ import type {
 } from '../generated/prisma/client.js';
 import { statusAllowsSignup } from '../domain/scouting.js';
 import { AppError } from '../utils/errors.js';
+import { getOrCreatePlayer } from './player.service.js';
 
 export class WaitlistService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -16,7 +17,9 @@ export class WaitlistService {
     discordUserId: string,
     sessionId: string,
     group: PositionGroup,
-    preferredPosition?: ScoutingPosition,
+    preferredPosition?: ScoutingPosition | undefined,
+    discordDisplayName?: string | undefined,
+    discordAvatarUrl?: string | null | undefined,
   ) {
     return this.prisma.$transaction(
       async (tx) => {
@@ -29,11 +32,13 @@ export class WaitlistService {
           throw new AppError('NOT_FOUND', 'Session not found.');
         if (!statusAllowsSignup(session.status, session.signupsOpen))
           throw new AppError('SIGNUPS_CLOSED', 'Waitlist signups are closed.');
-        const player = await tx.player.findFirst({
-          where: { guildConfigId: session.guildConfigId, discordUserId, registered: true },
+        const player = await getOrCreatePlayer(tx, guildId, {
+          discordUserId,
+          discordDisplayName,
+          discordAvatarUrl,
         });
-        if (!player) throw new AppError('NOT_REGISTERED', 'Register before joining a waitlist.');
-        if (player.positionGroup !== group)
+        const isEligibleGroup = (player?.signupPositions ?? []).length === 6 || player?.positionGroup === group;
+        if (!isEligibleGroup)
           throw new AppError(
             'INELIGIBLE_POSITION',
             `You cannot join the ${group.toLowerCase()} waitlist.`,

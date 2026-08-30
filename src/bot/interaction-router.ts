@@ -48,7 +48,7 @@ export async function routeInteraction(
       else if (interaction.commandName === 'setup') await handleSetup(interaction, context);
       else if (interaction.commandName === 'player') await handlePlayerSearch(interaction, context);
       else if (interaction.commandName === 'board') await handleBoard(interaction, context);
-      else if (interaction.commandName === 'help') await handleHelp(interaction);
+      else if (interaction.commandName === 'help') await handleHelp(interaction, context);
       else if (interaction.commandName === 'availability')
         await handleAvailability(interaction, context);
       else if (interaction.commandName === 'team') await handleTeam(interaction, context);

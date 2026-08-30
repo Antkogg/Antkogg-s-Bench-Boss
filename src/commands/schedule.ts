@@ -84,7 +84,12 @@ export async function handleSchedule(
     await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
     return;
   }
-  const player = await context.players.byDiscordId(interaction.guildId, interaction.user.id);
+  const player = await context.players.byDiscordId(
+    interaction.guildId,
+    interaction.user.id,
+    interaction.user.displayName ?? interaction.user.username,
+    interaction.user.displayAvatarURL(),
+  );
   await interaction.reply({ ephemeral: true, ...renderPlayerWeek(week, player.id) });
 }
 
@@ -98,7 +103,12 @@ export async function handleGame(interaction: ChatInputCommandInteraction, conte
   const management = hasManagementAccess(accessLevel(member, config));
   const player = management
     ? null
-    : await context.players.byDiscordId(interaction.guildId, interaction.user.id);
+    : await context.players.byDiscordId(
+        interaction.guildId,
+        interaction.user.id,
+        interaction.user.displayName ?? interaction.user.username,
+        interaction.user.displayAvatarURL(),
+      );
   const game = await context.schedule.nearestGame(interaction.guildId, player?.id);
   if (!game)
     throw new AppError(

@@ -8,7 +8,7 @@ import {
 import type { SessionFormat, SignupMode } from '../generated/prisma/enums.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { capacity } from '../domain/scouting.js';
-import { renderManagementPanel } from '../renderers/management.renderer.js';
+import { renderManagementPanel, renderMasterDashboard } from '../renderers/management.renderer.js';
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import type { BotContext } from './context.js';
@@ -70,6 +70,22 @@ export async function handleScout(
     throw new AppError('NOT_ALLOWED', 'This command is for LG Assistant management.');
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === 'upcoming') return handleScoutingBrowser(interaction, context);
+  if (subcommand === 'panel') {
+    const dashboard = renderMasterDashboard();
+    if (interaction.channel && 'send' in interaction.channel) {
+      await (interaction.channel as any).send(dashboard);
+    }
+    await interaction.reply({
+      ephemeral: true,
+      embeds: [
+        renderSuccess(
+          'Master Management Dashboard Posted',
+          'The private management control panel has been posted to this channel.',
+        ),
+      ],
+    });
+    return;
+  }
   if (subcommand === 'create') {
     if (!config.scoutingChannelId)
       throw new AppError(

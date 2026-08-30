@@ -57,6 +57,7 @@ function session(overrides: Partial<ScoutingSessionView> = {}): ScoutingSessionV
       updatedAt: new Date(),
     },
     assignments: [],
+    availability: [],
     waitlists: [],
   } satisfies ScoutingSessionView;
   return { ...base, ...overrides };

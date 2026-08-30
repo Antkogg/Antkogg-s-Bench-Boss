@@ -14,6 +14,7 @@ import { logger } from '../utils/logger.js';
 import { ScoutingSessionService, type CreateSessionInput } from './scouting-session.service.js';
 import type { ScoutingSessionView } from './scouting-view.js';
 import { WaitlistService } from './waitlist.service.js';
+import { getOrCreatePlayer } from './player.service.js';
 
 export type { CreateSessionInput } from './scouting-session.service.js';
 export type { ScoutingSessionView } from './scouting-view.js';
@@ -21,6 +22,8 @@ export type { ScoutingSessionView } from './scouting-view.js';
 export interface SignupInput {
   guildId: string;
   discordUserId: string;
+  discordDisplayName?: string | undefined;
+  discordAvatarUrl?: string | null | undefined;
   sessionId: string;
   position: ScoutingPosition;
   eligibilityOverride?: boolean;
@@ -49,131 +52,139 @@ export class ScoutingService {
     return this.sessions.upcoming(guildId, limit);
   }
 
-  async signup(
-    input: SignupInput,
-  ): Promise<{ session: ScoutingSessionView; previousPosition?: ScoutingPosition }> {
-    try {
-      const result = await this.prisma.$transaction(
-        async (tx) => {
-          const session = await tx.scoutingSession.findUnique({ where: { id: input.sessionId } });
-          if (!session || session.guildConfigId !== (await this.guildConfigId(tx, input.guildId))) {
-            throw new AppError('NOT_FOUND', 'That scouting session no longer exists.');
-          }
-          this.assertOpen(session.status, session.signupsOpen);
-          const player = await tx.player.findFirst({
-            where: {
-              guildConfigId: session.guildConfigId,
-              discordUserId: input.discordUserId,
-              registered: true,
-            },
-          });
-          if (!player)
-            throw new AppError('NOT_REGISTERED', 'Register in `/profile` before joining scouting.');
-          if (!isEligible(player.positionGroup, input.position) && !input.eligibilityOverride) {
-            throw new AppError(
-              'INELIGIBLE_POSITION',
-              `Your LG position is not eligible for ${input.position}.`,
-            );
-          }
-          const existing = await tx.scoutingAssignment.findUnique({
-            where: { sessionId_playerId: { sessionId: session.id, playerId: player.id } },
-          });
-          if (existing) {
-            if (existing.position === input.position)
-              throw new AppError(
-                'ALREADY_SIGNED_UP',
-                `You're already confirmed at ${input.position}.`,
-              );
-            return { kind: 'switch' as const, previousPosition: existing.position };
-          }
-          if (!input.conflictOverride && (await this.hasConflict(tx, player.id, session))) {
-            throw new AppError(
-              'SCHEDULE_CONFLICT',
-              "You're already confirmed for another game that overlaps this one.",
-            );
-          }
-          const team = await this.availableTeam(tx, session.id, session.format, input.position);
-          if (!team)
-            throw new AppError(
-              'POSITION_TAKEN',
-              `That ${input.position} spot was just taken. Try another position.`,
-            );
-          await tx.scoutingAssignment.create({
-            data: {
-              sessionId: session.id,
-              playerId: player.id,
-              team,
-              position: input.position,
-              eligibilityOverride: input.eligibilityOverride ?? false,
-              conflictOverride: input.conflictOverride ?? false,
-              assignedByDiscordId: input.actorDiscordId ?? null,
-            },
-          });
-          await tx.waitlistEntry.updateMany({
-            where: { sessionId: session.id, playerId: player.id },
-            data: { status: 'PROMOTED' },
-          });
-          await tx.player.update({
-            where: { id: player.id },
-            data: { lastRelevantActivityAt: new Date() },
-          });
-          await tx.playerActivity.create({
-            data: {
-              playerId: player.id,
-              kind: 'SCOUTING_SIGNUP',
-              relatedType: 'ScoutingSession',
-              relatedId: session.id,
-              details: { position: input.position },
-            },
-          });
-          if (
-            input.actorDiscordId &&
-            (input.eligibilityOverride === true || input.conflictOverride === true)
-          ) {
-            await tx.auditLog.create({
-              data: {
-                guildConfigId: session.guildConfigId,
-                actorDiscordId: input.actorDiscordId,
-                action: 'LINEUP_OVERRIDE',
-                targetType: 'ScoutingSession',
-                targetId: session.id,
-                details: {
-                  playerDiscordId: input.discordUserId,
-                  position: input.position,
-                  eligibilityOverride: input.eligibilityOverride === true,
-                  conflictOverride: input.conflictOverride === true,
-                },
-              },
-            });
-          }
-          return { kind: 'created' as const };
-        },
-        { isolationLevel: 'Serializable' },
-      );
-
-      if (result.kind === 'switch') {
-        const session = await this.require(input.sessionId);
-        return { session, previousPosition: result.previousPosition };
-      }
-      const session = await this.require(input.sessionId);
-      logger.info(
-        {
-          sessionId: input.sessionId,
-          discordUserId: input.discordUserId,
-          position: input.position,
-        },
-        'scouting signup completed',
-      );
-      return { session };
-    } catch (error) {
-      if (this.isUniqueConflict(error)) {
-        throw new AppError(
-          'POSITION_TAKEN',
-          `That ${input.position} spot was just taken. Try another position.`,
-        );
-      }
-      throw error;
+  async signup(input: SignupInput): Promise<{
+    session: ScoutingSessionView;
+    action: 'added' | 'removed' | 'switched';
+    position: ScoutingPosition;
+    previousPosition?: ScoutingPosition | undefined;
+  }> {
+    const session = await this.prisma.scoutingSession.findUnique({ where: { id: input.sessionId } });
+    if (!session || session.guildConfigId !== (await this.guildConfigId(this.prisma, input.guildId))) {
+      throw new AppError('NOT_FOUND', 'That scouting session no longer exists.');
     }
+    this.assertOpen(session.status, session.signupsOpen);
+
+    const player = await getOrCreatePlayer(this.prisma, input.guildId, {
+      discordUserId: input.discordUserId,
+      discordDisplayName: input.discordDisplayName,
+      discordAvatarUrl: input.discordAvatarUrl,
+    });
+
+    const existing = await this.prisma.availability.findUnique({
+      where: { sessionId_playerId: { sessionId: session.id, playerId: player.id } },
+    });
+
+    if (existing) {
+      if (existing.position === input.position) {
+        await this.prisma.availability.delete({ where: { id: existing.id } });
+        const updated = await this.require(input.sessionId);
+        return { session: updated, action: 'removed', position: input.position };
+      }
+      await this.prisma.availability.update({
+        where: { id: existing.id },
+        data: { position: input.position },
+      });
+      const updated = await this.require(input.sessionId);
+      return {
+        session: updated,
+        action: 'switched',
+        position: input.position,
+        previousPosition: existing.position ?? undefined,
+      };
+    }
+
+    await this.prisma.availability.create({
+      data: {
+        sessionId: session.id,
+        playerId: player.id,
+        position: input.position,
+      },
+    });
+
+    await this.prisma.player.update({
+      where: { id: player.id },
+      data: { lastRelevantActivityAt: new Date() },
+    });
+
+    await this.prisma.playerActivity.create({
+      data: {
+        playerId: player.id,
+        kind: 'SCOUTING_SIGNUP_POOL',
+        relatedType: 'ScoutingSession',
+        relatedId: session.id,
+        details: { position: input.position },
+      },
+    });
+
+    const updated = await this.require(input.sessionId);
+    return { session: updated, action: 'added', position: input.position };
+  }
+
+  async assignLineupPlayer(input: {
+    guildId: string;
+    sessionId: string;
+    discordUserId: string;
+    discordDisplayName?: string | undefined;
+    position: ScoutingPosition;
+    team?: LineupTeam | undefined;
+    eligibilityOverride?: boolean | undefined;
+    conflictOverride?: boolean | undefined;
+    actorDiscordId: string;
+  }): Promise<ScoutingSessionView> {
+    const session = await this.prisma.scoutingSession.findUnique({ where: { id: input.sessionId } });
+    if (!session || session.guildConfigId !== (await this.guildConfigId(this.prisma, input.guildId))) {
+      throw new AppError('NOT_FOUND', 'That scouting session no longer exists.');
+    }
+    const player = await getOrCreatePlayer(this.prisma, input.guildId, {
+      discordUserId: input.discordUserId,
+      discordDisplayName: input.discordDisplayName,
+    });
+
+    if (!input.conflictOverride && (await this.hasConflict(this.prisma, player.id, session))) {
+      throw new AppError(
+        'SCHEDULE_CONFLICT',
+        "That player is already confirmed for another game that overlaps this one.",
+      );
+    }
+
+    const team = input.team ?? (await this.availableTeam(this.prisma, session.id, session.format, input.position)) ?? 'TEAM_1';
+
+    await this.prisma.scoutingAssignment.upsert({
+      where: { sessionId_playerId: { sessionId: session.id, playerId: player.id } },
+      update: {
+        team,
+        position: input.position,
+        eligibilityOverride: input.eligibilityOverride ?? false,
+        conflictOverride: input.conflictOverride ?? false,
+        assignedByDiscordId: input.actorDiscordId,
+      },
+      create: {
+        sessionId: session.id,
+        playerId: player.id,
+        team,
+        position: input.position,
+        eligibilityOverride: input.eligibilityOverride ?? false,
+        conflictOverride: input.conflictOverride ?? false,
+        assignedByDiscordId: input.actorDiscordId,
+      },
+    });
+
+    await this.prisma.player.update({
+      where: { id: player.id },
+      data: { lastRelevantActivityAt: new Date() },
+    });
+
+    await this.prisma.playerActivity.create({
+      data: {
+        playerId: player.id,
+        kind: 'LINEUP_ASSIGNED_BY_MANAGEMENT',
+        relatedType: 'ScoutingSession',
+        relatedId: session.id,
+        details: { position: input.position, team },
+      },
+    });
+
+    return this.require(input.sessionId);
   }
 
   async switchPosition(input: SignupInput): Promise<ScoutingSessionView> {
@@ -183,15 +194,15 @@ export class ScoutingService {
           const session = await tx.scoutingSession.findUnique({ where: { id: input.sessionId } });
           if (!session) throw new AppError('NOT_FOUND', 'That scouting session no longer exists.');
           this.assertOpen(session.status, session.signupsOpen);
-          const player = await tx.player.findFirst({
-            where: {
-              guildConfigId: session.guildConfigId,
-              discordUserId: input.discordUserId,
-              registered: true,
-            },
+          const player = await getOrCreatePlayer(tx, input.guildId, {
+            discordUserId: input.discordUserId,
+            discordDisplayName: input.discordDisplayName,
+            discordAvatarUrl: input.discordAvatarUrl,
           });
-          if (!player) throw new AppError('NOT_REGISTERED', 'Register before joining scouting.');
-          if (!isEligible(player.positionGroup, input.position) && !input.eligibilityOverride) {
+          const eligible =
+            (player?.signupPositions ?? []).includes(input.position as any) ||
+            (player ? isEligible(player.positionGroup, input.position) : false);
+          if (!eligible && !input.eligibilityOverride) {
             throw new AppError(
               'INELIGIBLE_POSITION',
               `Your LG position is not eligible for ${input.position}.`,
@@ -301,9 +312,19 @@ export class ScoutingService {
     discordUserId: string,
     sessionId: string,
     group: PositionGroup,
-    preferredPosition?: ScoutingPosition,
+    preferredPosition?: ScoutingPosition | undefined,
+    discordDisplayName?: string | undefined,
+    discordAvatarUrl?: string | null | undefined,
   ) {
-    return this.waitlists.join(guildId, discordUserId, sessionId, group, preferredPosition);
+    return this.waitlists.join(
+      guildId,
+      discordUserId,
+      sessionId,
+      group,
+      preferredPosition,
+      discordDisplayName,
+      discordAvatarUrl,
+    );
   }
 
   async acceptWaitlistOffer(token: string, discordUserId: string): Promise<ScoutingSessionView> {

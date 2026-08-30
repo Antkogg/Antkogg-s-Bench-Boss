@@ -251,7 +251,10 @@ export const commandDefinitions = [
           option.setName('session').setDescription('Session ID (omit for next session)'),
         ),
     )
-    .addSubcommand((sub) => sub.setName('upcoming').setDescription('View upcoming sessions')),
+    .addSubcommand((sub) => sub.setName('upcoming').setDescription('View upcoming sessions'))
+    .addSubcommand((sub) =>
+      sub.setName('panel').setDescription('Post the Master Management Dashboard to the current channel'),
+    ),
   new SlashCommandBuilder()
     .setName('player')
     .setDescription('Find a player and open the private management view')

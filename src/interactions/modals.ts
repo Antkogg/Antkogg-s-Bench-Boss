@@ -227,9 +227,10 @@ export async function handleManagementModal(
   const affectedUserIds = [player.discordUserId];
   if (kind === 'add') {
     const overrides = interaction.fields.getTextInputValue('overrides').trim().toUpperCase();
-    await context.scouting.signup({
+    await context.scouting.assignLineupPlayer({
       guildId: interaction.guildId,
       discordUserId: player.discordUserId,
+      discordDisplayName: player.discordDisplayName,
       sessionId: parsed.entityId,
       position: parseScoutingPosition(interaction.fields.getTextInputValue('position')),
       eligibilityOverride: ['ELIGIBILITY', 'BOTH'].includes(overrides),

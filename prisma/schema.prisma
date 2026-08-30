@@ -594,10 +594,11 @@ model WaitlistEntry {
 }
 
 model Availability {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   sessionId String
   playerId  String
-  createdAt DateTime @default(now())
+  position  ScoutingPosition?
+  createdAt DateTime          @default(now())
 
   session ScoutingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)

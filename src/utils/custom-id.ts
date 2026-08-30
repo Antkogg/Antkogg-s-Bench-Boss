@@ -32,6 +32,7 @@ const actionSchema = z.enum([
   'rules-action',
   'modal-register',
   'modal-manage',
+  'manage-hub',
 ]);
 
 export type ComponentAction = z.infer<typeof actionSchema>;
