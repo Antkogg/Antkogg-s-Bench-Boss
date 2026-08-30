@@ -136,9 +136,7 @@ export function renderScoutingSession(session: ScoutingSessionView, viewerDiscor
         name: 'HOW TO SIGN UP',
         value:
           session.status === 'OPEN' && session.signupsOpen
-            ? session.signupMode === 'AVAILABILITY'
-              ? 'Tap **I’m Available**. Management will build the lineup from the availability pool.'
-              : 'Tap a position below (**LW**, **C**, **RW**, **LD**, **RD**, **G**) to join or switch in the signup pool. Management will confirm starters for the lineup.'
+            ? 'Tap a position below (**LW**, **C**, **RW**, **LD**, **RD**, **G**) to mark yourself available for that position in the pool. Management will confirm starting lineups.'
             : 'The lineup is preserved here. Player controls are currently disabled.',
         inline: false,
       },
@@ -178,7 +176,7 @@ export function scoutingComponents(
                 ? ButtonStyle.Primary
                 : ButtonStyle.Secondary,
           )
-          .setDisabled(!active || session.signupMode === 'AVAILABILITY'),
+          .setDisabled(!active),
       );
     }
     rows.push(row);
@@ -188,20 +186,12 @@ export function scoutingComponents(
       .setCustomId(customId('leave', session.id))
       .setLabel('Leave Game')
       .setStyle(ButtonStyle.Danger)
-      .setDisabled(!active || session.signupMode === 'AVAILABILITY'),
+      .setDisabled(!active),
     new ButtonBuilder()
       .setCustomId(customId('manage', session.id))
       .setLabel('Management')
       .setStyle(ButtonStyle.Secondary),
   );
-  if (session.signupMode === 'AVAILABILITY' && active) {
-    leave.addComponents(
-      new ButtonBuilder()
-        .setCustomId(customId('availability', session.id, 'toggle'))
-        .setLabel("I'm Available")
-        .setStyle(ButtonStyle.Success),
-    );
-  }
   rows.push(leave);
   return rows;
 }

@@ -142,20 +142,15 @@ describe('canonical scouting renderer', () => {
     expect(JSON.stringify(fields)).toContain('0 / 12 CONFIRMED');
   });
 
-  it('uses availability CTA without enabling position buttons', () => {
-    const rows = renderScoutingSession(session({ signupMode: 'AVAILABILITY' })).components.map(
+  it('enables position buttons for position-specific pool signups', () => {
+    const rows = renderScoutingSession(session()).components.map(
       (row) => row.toJSON(),
     );
     expect(
       rows
-        .flatMap((row) => row.components)
-        .some((component) => 'label' in component && component.label === "I'm Available"),
-    ).toBe(true);
-    expect(
-      rows
         .slice(0, 2)
         .flatMap((row) => row.components)
-        .every((button) => button.disabled),
+        .every((button) => !button.disabled),
     ).toBe(true);
   });
 });
