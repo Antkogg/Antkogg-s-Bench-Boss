@@ -112,51 +112,57 @@ export async function routeInteraction(
       return;
     }
     if (interaction.isAutocomplete()) {
-      if (interaction.commandName === 'scout') {
-        const focused = interaction.options.getFocused(true);
-        if (focused.name === 'time') {
-          const value = focused.value.toLowerCase();
-          const times = [
-            '5:00 PM',
-            '5:15 PM',
-            '5:30 PM',
-            '5:45 PM',
-            '6:00 PM',
-            '6:15 PM',
-            '6:30 PM',
-            '6:45 PM',
-            '7:00 PM',
-            '7:15 PM',
-            '7:30 PM',
-            '7:45 PM',
-            '8:00 PM',
-            '8:15 PM',
-            '8:30 PM',
-            '8:45 PM',
-            '9:00 PM',
-            '9:15 PM',
-            '9:30 PM',
-            '9:45 PM',
-            '10:00 PM',
-            '10:15 PM',
-            '10:30 PM',
-            '10:45 PM',
-            '11:00 PM',
-            '11:15 PM',
-            '11:30 PM',
-            '11:45 PM',
-            '12:00 AM',
-            '12:15 AM',
-            '12:30 AM',
-            '12:45 AM',
-            '1:00 AM',
-            '1:15 AM',
-            '1:30 AM',
-            '1:45 AM',
-          ];
-          const filtered = times.filter((t) => t.toLowerCase().includes(value)).slice(0, 25);
-          await interaction.respond(filtered.map((choice) => ({ name: choice, value: choice })));
-        }
+      const focused = interaction.options.getFocused(true);
+      if (focused.name === 'time') {
+        const value = focused.value.toLowerCase();
+        const times = [
+          '5:00 PM',
+          '5:15 PM',
+          '5:30 PM',
+          '5:45 PM',
+          '6:00 PM',
+          '6:15 PM',
+          '6:30 PM',
+          '6:45 PM',
+          '7:00 PM',
+          '7:15 PM',
+          '7:30 PM',
+          '7:45 PM',
+          '8:00 PM',
+          '8:15 PM',
+          '8:30 PM',
+          '8:45 PM',
+          '9:00 PM',
+          '9:15 PM',
+          '9:30 PM',
+          '9:45 PM',
+          '10:00 PM',
+          '10:15 PM',
+          '10:30 PM',
+          '10:45 PM',
+          '11:00 PM',
+          '11:15 PM',
+          '11:30 PM',
+          '11:45 PM',
+          '12:00 AM',
+          '12:15 AM',
+          '12:30 AM',
+          '12:45 AM',
+          '1:00 AM',
+          '1:15 AM',
+          '1:30 AM',
+          '1:45 AM',
+        ];
+        const filtered = times.filter((t) => t.toLowerCase().includes(value)).slice(0, 25);
+        await interaction.respond(filtered.map((choice) => ({ name: choice, value: choice })));
+      } else if ((focused.name === 'player' || focused.name === 'query') && interaction.guildId) {
+        const players = await context.players.search(interaction.guildId, focused.value);
+        await interaction.respond(
+          players.slice(0, 25).map((p) => ({
+            name: `${p.discordDisplayName} (${p.eaTag})`,
+            value: p.discordUserId,
+          })),
+        );
       }
       return;
     }

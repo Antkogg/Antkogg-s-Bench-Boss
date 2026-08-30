@@ -2,12 +2,13 @@ import type { StringSelectMenuInteraction } from 'discord.js';
 import type { BotContext } from '../commands/context.js';
 import type { ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
-import { renderSuccess } from '../renderers/design.js';
+import { renderSuccess, discordTimestamp } from '../renderers/design.js';
 import type { InternalPlayerStatus } from '../generated/prisma/enums.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { showManagementModal } from './modals.js';
 import { signupPositionLabel } from '../domain/positions.js';
 import { renderManagementPanel } from '../renderers/management.renderer.js';
+import { launchSessionFromPreset } from './management-buttons.js';
 
 export async function handleSelectMenu(
   interaction: StringSelectMenuInteraction,
@@ -22,6 +23,27 @@ export async function handleSelectMenu(
   ]);
   if (!hasManagementAccess(accessLevel(member, config)))
     throw new AppError('NOT_ALLOWED', 'This menu is private to LG Assistant management.');
+  if (parsed.action === 'manage-hub' && parsed.value === 'create-date') {
+    const rawValue = interaction.values[0]!;
+    const [dateStr, timeStr] = rawValue.split('.');
+    const { session, config: gConfig } = await launchSessionFromPreset(
+      context,
+      interaction.guildId,
+      interaction.user.id,
+      dateStr ?? 'Today',
+      timeStr ?? '8:30 PM',
+    );
+    await interaction.update({
+      embeds: [
+        renderSuccess(
+          'Scouting Session Live!',
+          `${discordTimestamp(session.startsAt, 'F')} is now live in <#${gConfig.scoutingChannelId}>.`,
+        ),
+      ],
+      components: [],
+    });
+    return;
+  }
   if (parsed.action === 'manage-hub' && parsed.value === 'set-tz') {
     const timezone = interaction.values[0]!;
     await context.config.update({ guildId: interaction.guildId, actorDiscordId: interaction.user.id, timezone });

@@ -1,11 +1,70 @@
+import { DateTime } from 'luxon';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type ButtonInteraction } from 'discord.js';
 import type { BotContext } from '../commands/context.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
-import { renderSuccess } from '../renderers/design.js';
+import { discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { renderManagementPanel } from '../renderers/management.renderer.js';
 import { customId, type ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { showManagementModal } from './modals.js';
+
+export async function launchSessionFromPreset(
+  context: BotContext,
+  guildId: string,
+  actorDiscordId: string,
+  dateStr: string,
+  timeStr: string,
+  formatStr = 'ONE_SIDE',
+) {
+  const config = await context.config.ensure(guildId);
+  if (!config.scoutingChannelId) {
+    throw new AppError('NOT_CONFIGURED', 'Configure the scouting channel with `/setup channels` first.');
+  }
+
+  let starts = DateTime.now().setZone(config.timezone);
+  if (dateStr.toLowerCase() === 'tomorrow') {
+    starts = starts.plus({ days: 1 });
+  } else if (dateStr.toLowerCase() !== 'today') {
+    const targetDayMap: Record<string, number> = {
+      monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7,
+    };
+    const targetDay = targetDayMap[dateStr.toLowerCase()];
+    if (targetDay) {
+      let daysToAdd = targetDay - starts.weekday;
+      if (daysToAdd <= 0) daysToAdd += 7;
+      starts = starts.plus({ days: daysToAdd });
+    }
+  }
+
+  let hours = 0;
+  let minutes = 0;
+  const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeMatch && timeMatch[1] && timeMatch[2]) {
+    hours = parseInt(timeMatch[1], 10);
+    minutes = parseInt(timeMatch[2], 10);
+  } else {
+    const pmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)$/i);
+    if (pmMatch && pmMatch[1] && pmMatch[3]) {
+      hours = parseInt(pmMatch[1], 10);
+      minutes = parseInt(pmMatch[2] || '0', 10);
+      if (pmMatch[3].toLowerCase() === 'pm' && hours < 12) hours += 12;
+      if (pmMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
+    }
+  }
+
+  starts = starts.set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
+  const format = formatStr === 'PRIVATE_6V6' ? 'PRIVATE_6V6' : 'ONE_SIDE';
+  const session = await context.scouting.create({
+    guildId,
+    startsAt: starts.toUTC().toJSDate(),
+    durationMinutes: config.defaultDurationMinutes,
+    format,
+    signupMode: 'OPEN_SIGNUP',
+    createdByDiscordId: actorDiscordId,
+  });
+  await context.posts.publish(session);
+  return { session, config };
+}
 
 export async function handleManagementButton(
   interaction: ButtonInteraction,
@@ -22,6 +81,30 @@ export async function handleManagementButton(
     throw new AppError('NOT_ALLOWED', 'This control is private to LG Assistant management.');
   if (parsed.action === 'manage-hub') {
     const val = parsed.value ?? parsed.entityId;
+    if (val.startsWith('quick.')) {
+      const parts = val.split('.');
+      const dateStr = parts[1] ?? 'Today';
+      const timeStr = parts[2] ?? '8:30 PM';
+      const formatStr = parts[3] ?? 'ONE_SIDE';
+      const { session, config: gConfig } = await launchSessionFromPreset(
+        context,
+        interaction.guildId,
+        interaction.user.id,
+        dateStr,
+        timeStr,
+        formatStr,
+      );
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [
+          renderSuccess(
+            'Scouting Session Live!',
+            `${discordTimestamp(session.startsAt, 'F')} is now live in <#${gConfig.scoutingChannelId}>.`,
+          ),
+        ],
+      });
+      return;
+    }
     if (val === 'list-sessions') {
       const sessions = await context.scouting.upcoming(interaction.guildId);
       if (!sessions.length) {
@@ -128,8 +211,64 @@ export async function handleManagementButton(
       });
       return;
     }
-    if (val === 'create-session') {
+    if (val === 'open-create-modal') {
       await showManagementModal(interaction, { action: 'modal-manage', entityId: 'hub', value: 'create-session' });
+      return;
+    }
+    if (val === 'create-session') {
+      const quickButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'quick.Today.8:30 PM.ONE_SIDE'))
+          .setLabel('Today 8:30 PM')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'quick.Today.9:00 PM.ONE_SIDE'))
+          .setLabel('Today 9:00 PM')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'quick.Today.9:30 PM.ONE_SIDE'))
+          .setLabel('Today 9:30 PM')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'quick.Tomorrow.8:30 PM.ONE_SIDE'))
+          .setLabel('Tomorrow 8:30 PM')
+          .setStyle(ButtonStyle.Primary),
+      );
+
+      const customRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'open-create-modal'))
+          .setLabel('⚙️ Custom Date & Time')
+          .setStyle(ButtonStyle.Secondary),
+      );
+
+      const dateSelect = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'create-date'))
+          .setPlaceholder('Or select Date & Time from dropdown...')
+          .addOptions(
+            { label: 'Today @ 8:30 PM', value: 'Today.8:30 PM' },
+            { label: 'Today @ 9:00 PM', value: 'Today.9:00 PM' },
+            { label: 'Today @ 9:30 PM', value: 'Today.9:30 PM' },
+            { label: 'Tomorrow @ 8:30 PM', value: 'Tomorrow.8:30 PM' },
+            { label: 'Tomorrow @ 9:00 PM', value: 'Tomorrow.9:00 PM' },
+            { label: 'Tomorrow @ 9:30 PM', value: 'Tomorrow.9:30 PM' },
+            { label: 'Sunday @ 8:30 PM', value: 'Sunday.8:30 PM' },
+            { label: 'Monday @ 8:30 PM', value: 'Monday.8:30 PM' },
+            { label: 'Tuesday @ 8:30 PM', value: 'Tuesday.8:30 PM' },
+          ),
+      );
+
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [
+          renderSuccess(
+            'Scouting Session Creator',
+            'Pick a **1-Click Preset**, select from the **Dropdown Menu**, or click **⚙️ Custom Date & Time** to set any custom time:',
+          ),
+        ],
+        components: [quickButtons, customRow, dateSelect],
+      });
       return;
     }
     return;
