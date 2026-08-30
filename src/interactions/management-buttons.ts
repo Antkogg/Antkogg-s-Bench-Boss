@@ -46,7 +46,7 @@ export async function handleManagementButton(
       return;
     }
     if (parsed.value === 'search-player') {
-      await showManagementModal(interaction, { action: 'modal-manage', entityId: 'search', value: 'add' });
+      await showManagementModal(interaction, { action: 'modal-manage', entityId: 'search', value: 'search-player' });
       return;
     }
     if (parsed.value === 'setup-view') {
@@ -80,8 +80,9 @@ export async function handleManagementButton(
     return showManagementModal(interaction, parsed);
   if (parsed.value === 'history') {
     const view = await context.evaluations.playerView(parsed.entityId);
-    const history = view.assignments.length
-      ? view.assignments
+    const assignments = (view as { assignments?: Array<{ session: { startsAt: Date; status: string }; position: string }> }).assignments ?? [];
+    const history = assignments.length
+      ? assignments
           .map(
             (entry) =>
               `<t:${Math.floor(entry.session.startsAt.getTime() / 1000)}:D> • **${entry.position}** • ${entry.session.status}`,

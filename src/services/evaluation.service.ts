@@ -47,7 +47,7 @@ export class EvaluationService {
         attendance: true,
         assignments: { include: { session: true }, orderBy: { createdAt: 'desc' }, take: 20 },
         weeklyAvailability: {
-          include: { week: true, selections: { include: { game: true } } },
+          include: { week: true, responses: { include: { game: true } } },
           orderBy: { submittedAt: 'desc' },
           take: 10,
         },

@@ -148,6 +148,17 @@ export async function showManagementModal(
         TextInputStyle.Paragraph,
       ),
     );
+  } else if (kind === 'create-session') {
+    modal.addComponents(
+      textInput('date', 'Date', 'Today, Tomorrow, Monday, Tuesday, etc.', 20),
+      textInput('time', 'Start Time', 'Example: 8:30 PM', 20),
+      textInput('format', 'Format (optional)', 'ONE_SIDE or PRIVATE_6V6', 20),
+      textInput('title', 'Title / Note (optional)', 'e.g. Scouting vs Opponent', 100),
+    );
+  } else if (kind === 'search-player') {
+    modal.addComponents(
+      textInput('player', 'Player EA Tag, Discord Name, or ID', 'Search query', 50),
+    );
   }
   await interaction.showModal(modal);
 }
@@ -211,6 +222,20 @@ export async function handleManagementModal(
     await interaction.reply({
       ephemeral: true,
       embeds: [renderSuccess('Evaluation saved', 'This evaluation remains private to management.')],
+    });
+    return;
+  }
+  if (kind === 'search-player') {
+    const query = interaction.fields.getTextInputValue('player');
+    const players = await context.players.search(interaction.guildId, query);
+    if (!players.length) throw new AppError('NOT_FOUND', `No matching player found for "${query}".`);
+    const target = players[0]!;
+    const view = await context.evaluations.playerView(target.id);
+    const assignments = (view as { assignments?: unknown[] }).assignments ?? [];
+    const details = `**EA Tag:** \`${target.eaTag}\`\n**Discord:** <@${target.discordUserId}>\n**Positions:** ${(target.signupPositions ?? []).join(', ') || 'ALL'}\n**Scouting Games:** ${assignments.length}`;
+    await interaction.reply({
+      ephemeral: true,
+      embeds: [renderSuccess(`Player Info: ${target.discordDisplayName}`, details)],
     });
     return;
   }

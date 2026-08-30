@@ -25,7 +25,7 @@ export async function handleButton(
   }
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Use this control in the server.');
-  if (parsed.action === 'manage' || parsed.action === 'manage-action')
+  if (parsed.action === 'manage' || parsed.action === 'manage-action' || parsed.action === 'manage-hub')
     return handleManagementButton(interaction, context, parsed);
   if (parsed.action === 'signup') {
     const position = parsed.value as ScoutingPosition;
