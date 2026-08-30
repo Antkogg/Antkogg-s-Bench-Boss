@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import {
   ActionRowBuilder,
   ModalBuilder,
@@ -8,7 +9,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import type { ScoutingPosition, SignupPosition } from '../generated/prisma/enums.js';
-import { renderSuccess } from '../renderers/design.js';
+import { discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { customId, type ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import type { BotContext } from '../commands/context.js';
@@ -18,9 +19,10 @@ function textInput(
   customIdValue: string,
   label: string,
   placeholder: string,
-  maxLength: number,
+  maxLength = 100,
   style = TextInputStyle.Short,
-) {
+  required = true,
+): ActionRowBuilder<TextInputBuilder> {
   return new ActionRowBuilder<TextInputBuilder>().addComponents(
     new TextInputBuilder()
       .setCustomId(customIdValue)
@@ -28,7 +30,7 @@ function textInput(
       .setPlaceholder(placeholder)
       .setMaxLength(maxLength)
       .setStyle(style)
-      .setRequired(true),
+      .setRequired(required),
   );
 }
 
@@ -236,6 +238,87 @@ export async function handleManagementModal(
     await interaction.reply({
       ephemeral: true,
       embeds: [renderSuccess(`Player Info: ${target.discordDisplayName}`, details)],
+    });
+    return;
+  }
+  if (kind === 'create-session') {
+    if (!config.scoutingChannelId)
+      throw new AppError(
+        'NOT_CONFIGURED',
+        'Configure the scouting channel with `/setup channels` first.',
+      );
+    const dateStr = interaction.fields.getTextInputValue('date').trim();
+    const timeStr = interaction.fields.getTextInputValue('time').trim();
+    const formatInput = interaction.fields.getTextInputValue('format').trim().toUpperCase();
+    const title = interaction.fields.getTextInputValue('title').trim();
+
+    let starts = DateTime.now().setZone(config.timezone);
+    if (dateStr.toLowerCase() === 'tomorrow') {
+      starts = starts.plus({ days: 1 });
+    } else if (dateStr.toLowerCase() !== 'today') {
+      const targetDayMap: Record<string, number> = {
+        monday: 1,
+        tuesday: 2,
+        wednesday: 3,
+        thursday: 4,
+        friday: 5,
+        saturday: 6,
+        sunday: 7,
+      };
+      const targetDay = targetDayMap[dateStr.toLowerCase()];
+      if (targetDay) {
+        let daysToAdd = targetDay - starts.weekday;
+        if (daysToAdd <= 0) daysToAdd += 7;
+        starts = starts.plus({ days: daysToAdd });
+      }
+    }
+
+    let hours = 0;
+    let minutes = 0;
+    const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch && timeMatch[1] && timeMatch[2]) {
+      hours = parseInt(timeMatch[1], 10);
+      minutes = parseInt(timeMatch[2], 10);
+    } else {
+      const pmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)$/i);
+      if (pmMatch && pmMatch[1] && pmMatch[3]) {
+        hours = parseInt(pmMatch[1], 10);
+        minutes = parseInt(pmMatch[2] || '0', 10);
+        if (pmMatch[3].toLowerCase() === 'pm' && hours < 12) hours += 12;
+        if (pmMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
+      } else {
+        throw new AppError(
+          'INVALID_INPUT',
+          'Please enter a valid time (e.g. 8:30 PM, 9:00 PM, or 20:30).',
+        );
+      }
+    }
+
+    starts = starts.set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
+    if (!starts.isValid)
+      throw new AppError('INVALID_INPUT', 'Failed to parse the selected date and time.');
+    if (starts.toMillis() < Date.now() - 60_000)
+      throw new AppError('INVALID_INPUT', 'Scouting must start in the future.');
+
+    await interaction.deferReply({ ephemeral: true });
+    const format = formatInput === 'PRIVATE_6V6' ? 'PRIVATE_6V6' : 'ONE_SIDE';
+    const session = await context.scouting.create({
+      guildId: interaction.guildId,
+      startsAt: starts.toUTC().toJSDate(),
+      durationMinutes: config.defaultDurationMinutes,
+      format,
+      signupMode: 'OPEN_SIGNUP',
+      ...(title ? { note: title } : {}),
+      createdByDiscordId: interaction.user.id,
+    });
+    await context.posts.publish(session);
+    await interaction.editReply({
+      embeds: [
+        renderSuccess(
+          'Scouting Session Posted!',
+          `${discordTimestamp(session.startsAt, 'F')} is live in <#${config.scoutingChannelId}>.`,
+        ),
+      ],
     });
     return;
   }

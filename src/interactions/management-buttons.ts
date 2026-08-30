@@ -1,4 +1,4 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, type ButtonInteraction } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type ButtonInteraction } from 'discord.js';
 import type { BotContext } from '../commands/context.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { renderSuccess } from '../renderers/design.js';
@@ -27,22 +27,79 @@ export async function handleManagementButton(
       if (!sessions.length) {
         await interaction.reply({
           ephemeral: true,
-          embeds: [renderSuccess('Active Scouting Sessions', 'No upcoming sessions posted.')],
+          embeds: [renderSuccess('Active Scouting Sessions', 'No upcoming sessions posted. Click **➕ New Scouting Session** to post one!')],
         });
         return;
       }
-      const upcomingSession = sessions[0]!;
-      await interaction.reply({ ephemeral: true, ...renderManagementPanel(upcomingSession) });
+      if (sessions.length === 1) {
+        await interaction.reply({ ephemeral: true, ...renderManagementPanel(sessions[0]!) });
+        return;
+      }
+      const selectMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'select-session'))
+          .setPlaceholder('Choose a scouting session to manage...')
+          .addOptions(
+            sessions.slice(0, 25).map((session) => ({
+              label: `${session.format === 'PRIVATE_6V6' ? '6v6' : '1-Side'} • ${session.assignments.length} confirmed`,
+              value: session.id,
+              description: `Starts: ${session.startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+            })),
+          ),
+      );
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [renderSuccess('Active Scouting Sessions', 'Select a session below to open its control room:')],
+        components: [selectMenu],
+      });
       return;
     }
     if (val === 'weekly-avail') {
       const currentWeek = await context.weeklyAvailability.current(interaction.guildId);
-      const description = currentWeek
-        ? `**Week Status:** ${currentWeek.status}\n**Submissions:** ${currentWeek.submissions.length} players submitted\n**Games This Week:** ${currentWeek.games.length}`
-        : 'No weekly availability active right now.';
+      if (!currentWeek) {
+        await interaction.reply({
+          ephemeral: true,
+          embeds: [renderSuccess('Weekly Availability', 'No weekly availability active right now.')],
+        });
+        return;
+      }
+      const isWeekOpen = currentWeek.status === 'OPEN';
+      const description = `**Week:** ${currentWeek.label}\n**Status:** ${currentWeek.status}\n**Submissions:** ${currentWeek.submissions.length} submitted\n**Games:** ${currentWeek.games.length} games scheduled`;
+      const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'toggle-weekly'))
+          .setLabel(isWeekOpen ? '🔒 Lock Weekly Availability' : '🔓 Open Weekly Availability')
+          .setStyle(isWeekOpen ? ButtonStyle.Danger : ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'remind-weekly'))
+          .setLabel('📢 Remind Unsubmitted Players')
+          .setStyle(ButtonStyle.Primary),
+      );
       await interaction.reply({
         ephemeral: true,
-        embeds: [renderSuccess('Weekly Availability Overview', description)],
+        embeds: [renderSuccess('Weekly Availability Control', description)],
+        components: [buttons],
+      });
+      return;
+    }
+    if (val === 'toggle-weekly') {
+      const currentWeek = await context.weeklyAvailability.current(interaction.guildId);
+      if (!currentWeek) throw new AppError('NOT_FOUND', 'No active weekly availability week found.');
+      const newStatus = currentWeek.status === 'OPEN' ? 'LOCKED' : 'OPEN';
+      await context.weeklyAvailability.setState(currentWeek.id, newStatus, interaction.user.id);
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [renderSuccess('Weekly Availability Updated', `Weekly availability is now **${newStatus}**.`)],
+      });
+      return;
+    }
+    if (val === 'remind-weekly') {
+      const currentWeek = await context.weeklyAvailability.current(interaction.guildId);
+      if (!currentWeek) throw new AppError('NOT_FOUND', 'No active weekly availability week found.');
+      const missing = await context.weeklyAvailability.missing(currentWeek.id);
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [renderSuccess('Reminders Processed', `Sent availability reminders to **${missing.length}** unsubmitted players.`)],
       });
       return;
     }
@@ -52,22 +109,27 @@ export async function handleManagementButton(
     }
     if (val === 'setup-view') {
       const details = `**Timezone:** ${config.timezone}\n**Format:** ${config.defaultFormat}\n**Scouting Channel:** <#${config.scoutingChannelId ?? 'Not Set'}>\n**Management Role:** ${config.managementRoleId ? `<@&${config.managementRoleId}>` : 'Server Admins / Managers'}`;
+      const tzSelect = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(customId('manage-hub', 'hub', 'set-tz'))
+          .setPlaceholder('Quick-change server timezone...')
+          .addOptions(
+            { label: 'Eastern Time (EST/EDT)', value: 'America/New_York' },
+            { label: 'Central Time (CST/CDT)', value: 'America/Chicago' },
+            { label: 'Mountain Time (MST/MDT)', value: 'America/Denver' },
+            { label: 'Pacific Time (PST/PDT)', value: 'America/Los_Angeles' },
+            { label: 'Atlantic Time (AST/ADT)', value: 'America/Halifax' },
+          ),
+      );
       await interaction.reply({
         ephemeral: true,
-        embeds: [renderSuccess('Server Setup Status', details)],
+        embeds: [renderSuccess('Server Setup & Settings', details)],
+        components: [tzSelect],
       });
       return;
     }
     if (val === 'create-session') {
-      await interaction.reply({
-        ephemeral: true,
-        embeds: [
-          renderSuccess(
-            'Create Scouting Session',
-            'To post a new scouting session, use `/scout create date:Today time:8:30 PM format:One Side`',
-          ),
-        ],
-      });
+      await showManagementModal(interaction, { action: 'modal-manage', entityId: 'hub', value: 'create-session' });
       return;
     }
     return;
