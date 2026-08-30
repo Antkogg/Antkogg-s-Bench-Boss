@@ -211,63 +211,15 @@ export async function handleManagementButton(
       });
       return;
     }
-    if (val === 'open-create-modal') {
-      await showManagementModal(interaction, { action: 'modal-manage', entityId: 'hub', value: 'create-session' });
-      return;
-    }
     if (val === 'create-session') {
-      const quickButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'hub', 'quick.Today.8:30 PM.ONE_SIDE'))
-          .setLabel('Today 8:30 PM')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'hub', 'quick.Today.9:00 PM.ONE_SIDE'))
-          .setLabel('Today 9:00 PM')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'hub', 'quick.Today.9:30 PM.ONE_SIDE'))
-          .setLabel('Today 9:30 PM')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'hub', 'quick.Tomorrow.8:30 PM.ONE_SIDE'))
-          .setLabel('Tomorrow 8:30 PM')
-          .setStyle(ButtonStyle.Primary),
-      );
-
-      const customRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(customId('manage-hub', 'hub', 'open-create-modal'))
-          .setLabel('⚙️ Custom Date & Time')
-          .setStyle(ButtonStyle.Secondary),
-      );
-
-      const dateSelect = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(customId('manage-hub', 'hub', 'create-date'))
-          .setPlaceholder('Or select Date & Time from dropdown...')
-          .addOptions(
-            { label: 'Today @ 8:30 PM', value: 'Today.8:30 PM' },
-            { label: 'Today @ 9:00 PM', value: 'Today.9:00 PM' },
-            { label: 'Today @ 9:30 PM', value: 'Today.9:30 PM' },
-            { label: 'Tomorrow @ 8:30 PM', value: 'Tomorrow.8:30 PM' },
-            { label: 'Tomorrow @ 9:00 PM', value: 'Tomorrow.9:00 PM' },
-            { label: 'Tomorrow @ 9:30 PM', value: 'Tomorrow.9:30 PM' },
-            { label: 'Sunday @ 8:30 PM', value: 'Sunday.8:30 PM' },
-            { label: 'Monday @ 8:30 PM', value: 'Monday.8:30 PM' },
-            { label: 'Tuesday @ 8:30 PM', value: 'Tuesday.8:30 PM' },
-          ),
-      );
-
       await interaction.reply({
         ephemeral: true,
         embeds: [
           renderSuccess(
-            'Scouting Session Creator',
-            'Pick a **1-Click Preset**, select from the **Dropdown Menu**, or click **⚙️ Custom Date & Time** to set any custom time:',
+            'Create Scouting Session',
+            'To post a new scouting session with real-time 15-minute time autocompletion, use:\n\n`/scout create date:Today time:8:30 PM format:One Side`',
           ),
         ],
-        components: [quickButtons, customRow, dateSelect],
       });
       return;
     }
