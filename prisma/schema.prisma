@@ -161,6 +161,11 @@ enum GameAvailabilityStatus {
   UNAVAILABLE
 }
 
+enum WelcomeMode {
+  SCOUTING
+  SEASON
+}
+
 model GuildConfig {
   id                             String           @id @default(cuid())
   guildId                        String           @unique
@@ -183,6 +188,10 @@ model GuildConfig {
   teamAnnouncementsChannelId     String?
   managementChannelId            String?
   rulesChannelId                 String?
+  welcomeChannelId               String?          @default("1533692233268728068")
+  welcomeMode                    WelcomeMode      @default(SCOUTING)
+  s55GoalsChannelId              String?          @default("1534700577789841418")
+  lgRulesChannelId               String?          @default("1543414198741237911")
   teamName                       String           @default("Boston University")
   seasonLabel                    String           @default("S55")
   defaultFormat                  SessionFormat    @default(ONE_SIDE)

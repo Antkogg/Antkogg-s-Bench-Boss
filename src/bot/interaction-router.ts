@@ -31,6 +31,7 @@ import {
   handleWeekDayModal,
   handleWeekGameSelect,
 } from '../interactions/schedule.js';
+import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
 import { AppError, publicErrorMessage } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -68,7 +69,9 @@ export async function routeInteraction(
     }
     if (interaction.isButton()) {
       const parsed = parseCustomId(interaction.customId);
-      if (parsed.action === 'weekly-availability')
+      if (parsed.action === 'welcome-group')
+        await handleWelcomeButton(interaction, context, parsed);
+      else if (parsed.action === 'weekly-availability')
         await handleWeeklyAvailabilityButton(interaction, context, parsed);
       else if (parsed.action === 'availability-remind')
         await handleAvailabilityReminderButton(interaction, context, parsed);
@@ -87,7 +90,9 @@ export async function routeInteraction(
     }
     if (interaction.isStringSelectMenu()) {
       const parsed = parseCustomId(interaction.customId);
-      if (parsed.action === 'weekly-availability-select')
+      if (parsed.action === 'welcome-positions')
+        await handleWelcomeSelectMenu(interaction, context, parsed);
+      else if (parsed.action === 'weekly-availability-select')
         await handleWeeklyAvailabilitySelect(interaction, context, parsed);
       else if (parsed.action === 'week-game-select')
         await handleWeekGameSelect(interaction, context);

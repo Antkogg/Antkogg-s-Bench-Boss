@@ -1,4 +1,4 @@
-import type { PrismaClient, SessionFormat, TcReminderPolicy } from '../generated/prisma/client.js';
+import type { PrismaClient, SessionFormat, TcReminderPolicy, WelcomeMode } from '../generated/prisma/client.js';
 
 export interface SetupInput {
   guildId: string;
@@ -21,6 +21,10 @@ export interface SetupInput {
   teamAnnouncementsChannelId?: string | null;
   managementChannelId?: string | null;
   rulesChannelId?: string | null;
+  welcomeChannelId?: string | null;
+  welcomeMode?: WelcomeMode;
+  s55GoalsChannelId?: string | null;
+  lgRulesChannelId?: string | null;
   teamName?: string;
   seasonLabel?: string;
   defaultFormat?: SessionFormat;

@@ -14,6 +14,7 @@ import type { WeeklyAvailabilityService } from '../services/weekly-availability.
 import type { TeamService } from '../services/team.service.js';
 import type { RulesService } from '../services/rules.service.js';
 import type { ScheduleService } from '../services/schedule.service.js';
+import type { WelcomeService } from '../services/welcome.service.js';
 
 export interface BotContext {
   client: Client;
@@ -32,4 +33,5 @@ export interface BotContext {
   rules: RulesService;
   schedule: ScheduleService;
   board: BoardService;
+  welcome: WelcomeService;
 }

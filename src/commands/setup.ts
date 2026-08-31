@@ -56,6 +56,11 @@ export async function handleSetup(
               value: config.reminderMinutes.map((minutes) => `${minutes} min`).join(' • '),
               inline: true,
             },
+            {
+              name: 'WELCOME CONFIG',
+              value: `Mode: **${config.welcomeMode}**\nChannel: ${config.welcomeChannelId ? `<#${config.welcomeChannelId}>` : '<#1533692233268728068>'}\nGoals Channel: ${config.s55GoalsChannelId ? `<#${config.s55GoalsChannelId}>` : '<#1534700577789841418>'}\nRules Channel: ${config.lgRulesChannelId ? `<#${config.lgRulesChannelId}>` : '<#1543414198741237911>'}`,
+              inline: false,
+            },
           ),
       ],
     });
@@ -158,6 +163,19 @@ export async function handleSetup(
       availabilityReminderMinutes: reminders,
       tcReminderPolicy: interaction.options.getString('tc_policy', true) as
         'REQUIRED' | 'ENCOURAGED' | 'DISABLED',
+    });
+  } else if (subcommand === 'welcome') {
+    const mode = interaction.options.getString('mode') as 'SCOUTING' | 'SEASON' | null;
+    const welcomeChannelId = interaction.options.getChannel('welcome_channel')?.id;
+    const s55GoalsChannelId = interaction.options.getChannel('s55_goals')?.id;
+    const lgRulesChannelId = interaction.options.getChannel('lg_rules')?.id;
+    await context.config.update({
+      guildId: interaction.guildId,
+      actorDiscordId: interaction.user.id,
+      ...(mode ? { welcomeMode: mode } : {}),
+      ...(welcomeChannelId ? { welcomeChannelId } : {}),
+      ...(s55GoalsChannelId ? { s55GoalsChannelId } : {}),
+      ...(lgRulesChannelId ? { lgRulesChannelId } : {}),
     });
   } else {
     const timezone = interaction.options.getString('timezone', true);

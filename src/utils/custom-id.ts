@@ -33,6 +33,9 @@ const actionSchema = z.enum([
   'modal-register',
   'modal-manage',
   'manage-hub',
+  'welcome-group',
+  'welcome-positions',
+  'welcome-mode',
 ]);
 
 export type ComponentAction = z.infer<typeof actionSchema>;

@@ -185,6 +185,38 @@ export const commandDefinitions = [
             .setName('notify_game_info')
             .setDescription('DM confirmed players when server/code is set'),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('welcome')
+        .setDescription('Configure Discord welcome mode and channels')
+        .addStringOption((option) =>
+          option
+            .setName('mode')
+            .setDescription('Select welcome mode: Scouting Mode or Season Mode')
+            .addChoices(
+              { name: 'Scouting Mode (pre-season scouting)', value: 'SCOUTING' },
+              { name: 'Season Mode (roster players & game fill-ins)', value: 'SEASON' },
+            ),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('welcome_channel')
+            .setDescription('Channel for welcome messages (default: 1533692233268728068)')
+            .addChannelTypes(ChannelType.GuildText),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('s55_goals')
+            .setDescription('Goals & info channel (default: 1534700577789841418)')
+            .addChannelTypes(ChannelType.GuildText),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('lg_rules')
+            .setDescription('LG rules & info channel (default: 1543414198741237911)')
+            .addChannelTypes(ChannelType.GuildText),
+        ),
     ),
   new SlashCommandBuilder()
     .setName('scout')

@@ -232,4 +232,28 @@ export class PlayerService {
     });
     return player;
   }
+
+  async updatePositions(
+    guildId: string,
+    discordUserId: string,
+    signupPositions: SignupPosition[],
+    discordDisplayName?: string,
+    discordAvatarUrl?: string | null,
+  ) {
+    const player = await getOrCreatePlayer(this.prisma, guildId, {
+      discordUserId,
+      discordDisplayName,
+      discordAvatarUrl,
+    });
+    const positionGroup = groupForSignupPositions(signupPositions);
+    const updated = await this.prisma.player.update({
+      where: { id: player.id },
+      data: {
+        signupPositions,
+        positionGroup,
+        lastRelevantActivityAt: new Date(),
+      },
+    });
+    return updated;
+  }
 }
