@@ -4,7 +4,7 @@ export function brandedEmbed(color = BRAND.colors.primary) {
     return new EmbedBuilder()
         .setColor(color)
         .setAuthor({ name: `${BRAND.shortName}  •  ${BRAND.descriptor}` })
-        .setFooter({ text: "ANTKOGG'S LG ASSISTANT  •  Discord is the rink" });
+        .setFooter({ text: "ANTKOGG'S BENCH BOSS" });
 }
 export function renderSuccess(title, description) {
     return brandedEmbed(BRAND.colors.success).setTitle(`✓ ${title}`).setDescription(description);
