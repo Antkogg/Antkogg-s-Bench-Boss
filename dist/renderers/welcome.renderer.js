@@ -70,11 +70,7 @@ export function renderWelcomeEmbed(member, config) {
         .setCustomId(customId('welcome-group', member.id, 'G'))
         .setLabel('🥅 Goalie (G)')
         .setStyle(ButtonStyle.Secondary));
-    const row3 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'VIEW'))
-        .setLabel('📋 View My Selected Positions')
-        .setStyle(ButtonStyle.Secondary));
-    return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2, row3] };
+    return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2] };
 }
 export function renderRoleSelectPanel(guild) {
     const iconUrl = guild?.iconURL({ size: 256 });
@@ -108,11 +104,7 @@ export function renderRoleSelectPanel(guild) {
         .setCustomId(customId('welcome-group', 'panel', 'G'))
         .setLabel('🥅 Goalie (G)')
         .setStyle(ButtonStyle.Secondary));
-    const row3 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'VIEW'))
-        .setLabel('📋 View My Selected Positions')
-        .setStyle(ButtonStyle.Secondary));
-    return { embeds: [embed], components: [row1, row2, row3] };
+    return { embeds: [embed], components: [row1, row2] };
 }
 export function renderForwardPositionSelect(memberId) {
     const select = new StringSelectMenuBuilder()
