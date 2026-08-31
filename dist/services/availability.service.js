@@ -1,15 +1,16 @@
 import { AppError } from '../utils/errors.js';
+import { getOrCreatePlayer } from './player.service.js';
 export class AvailabilityService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async set(guildId, discordUserId, sessionIds) {
-        const player = await this.prisma.player.findFirst({
-            where: { guildConfig: { guildId }, discordUserId, registered: true },
+    async set(guildId, discordUserId, sessionIds, discordDisplayName, discordAvatarUrl) {
+        const player = await getOrCreatePlayer(this.prisma, guildId, {
+            discordUserId,
+            discordDisplayName,
+            discordAvatarUrl,
         });
-        if (!player)
-            throw new AppError('NOT_REGISTERED', 'Register before sharing availability.');
         const validSessions = await this.prisma.scoutingSession.findMany({
             where: {
                 id: { in: [...sessionIds] },

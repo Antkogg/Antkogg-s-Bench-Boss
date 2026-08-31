@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { statusAllowsSignup } from '../domain/scouting.js';
 import { AppError } from '../utils/errors.js';
+import { getOrCreatePlayer } from './player.service.js';
 export class WaitlistService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async join(guildId, discordUserId, sessionId, group, preferredPosition) {
+    async join(guildId, discordUserId, sessionId, group, preferredPosition, discordDisplayName, discordAvatarUrl) {
         return this.prisma.$transaction(async (tx) => {
             const session = await tx.scoutingSession.findUnique({ where: { id: sessionId } });
             const config = await tx.guildConfig.findUnique({
@@ -17,12 +18,13 @@ export class WaitlistService {
                 throw new AppError('NOT_FOUND', 'Session not found.');
             if (!statusAllowsSignup(session.status, session.signupsOpen))
                 throw new AppError('SIGNUPS_CLOSED', 'Waitlist signups are closed.');
-            const player = await tx.player.findFirst({
-                where: { guildConfigId: session.guildConfigId, discordUserId, registered: true },
+            const player = await getOrCreatePlayer(tx, guildId, {
+                discordUserId,
+                discordDisplayName,
+                discordAvatarUrl,
             });
-            if (!player)
-                throw new AppError('NOT_REGISTERED', 'Register before joining a waitlist.');
-            if (player.positionGroup !== group)
+            const isEligibleGroup = (player?.signupPositions ?? []).length === 6 || player?.positionGroup === group;
+            if (!isEligibleGroup)
                 throw new AppError('INELIGIBLE_POSITION', `You cannot join the ${group.toLowerCase()} waitlist.`);
             if (await tx.scoutingAssignment.findUnique({
                 where: { sessionId_playerId: { sessionId, playerId: player.id } },

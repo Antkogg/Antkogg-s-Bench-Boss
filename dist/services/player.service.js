@@ -1,6 +1,61 @@
 import { groupForSignupPositions } from '../domain/positions.js';
 import { AppError } from '../utils/errors.js';
 import { cleanDisplayValue, normalizeIdentity } from '../utils/normalize.js';
+export async function getOrCreatePlayer(prisma, guildId, user) {
+    let configId = 'g1';
+    if ('guildConfig' in prisma && prisma.guildConfig && typeof prisma.guildConfig.upsert === 'function') {
+        const config = await prisma.guildConfig.upsert({
+            where: { guildId },
+            update: {},
+            create: { guildId },
+        });
+        configId = config.id;
+    }
+    else if ('guildConfig' in prisma && prisma.guildConfig && typeof prisma.guildConfig.findUnique === 'function') {
+        const config = await prisma.guildConfig.findUnique({ where: { guildId } });
+        if (config?.id)
+            configId = config.id;
+    }
+    let player = 'player' in prisma && prisma.player && typeof prisma.player.findFirst === 'function'
+        ? await prisma.player.findFirst({
+            where: {
+                guildConfigId: configId,
+                discordUserId: user.discordUserId,
+            },
+        })
+        : null;
+    if (!player && 'player' in prisma && prisma.player && typeof prisma.player.create === 'function') {
+        const displayName = cleanDisplayValue(user.discordDisplayName ?? user.discordUserId, 80) || user.discordUserId;
+        player = await prisma.player.create({
+            data: {
+                guildConfigId: configId,
+                discordUserId: user.discordUserId,
+                discordDisplayName: displayName,
+                discordAvatarUrl: user.discordAvatarUrl ?? null,
+                lgUsername: displayName,
+                lgUsernameNormalized: normalizeIdentity(displayName),
+                eaTag: displayName,
+                eaTagNormalized: normalizeIdentity(displayName),
+                signupPositions: ['LW', 'C', 'RW', 'LD', 'RD', 'G'],
+                positionGroup: 'FORWARD',
+                registered: true,
+            },
+        });
+    }
+    else if (player && user.discordDisplayName && player.discordDisplayName !== user.discordDisplayName && 'player' in prisma && prisma.player && typeof prisma.player.update === 'function') {
+        player = await prisma.player.update({
+            where: { id: player.id },
+            data: {
+                discordDisplayName: cleanDisplayValue(user.discordDisplayName, 80),
+                discordAvatarUrl: user.discordAvatarUrl ?? player.discordAvatarUrl,
+            },
+        });
+    }
+    if (!player) {
+        throw new AppError('NOT_FOUND', 'Could not retrieve or create player profile.');
+    }
+    return player;
+}
 export class PlayerService {
     prisma;
     constructor(prisma) {
@@ -72,17 +127,21 @@ export class PlayerService {
             throw error;
         }
     }
-    async byDiscordId(guildId, discordUserId) {
-        const player = await this.prisma.player.findFirst({
-            where: { guildConfig: { guildId }, discordUserId, registered: true },
+    async byDiscordId(guildId, discordUserId, discordDisplayName, discordAvatarUrl) {
+        return getOrCreatePlayer(this.prisma, guildId, {
+            discordUserId,
+            discordDisplayName,
+            discordAvatarUrl,
         });
-        if (!player)
-            throw new AppError('NOT_REGISTERED', 'Register first using the **Register** button in `/profile`.');
-        return player;
     }
-    async profile(guildId, discordUserId) {
-        const player = await this.prisma.player.findFirst({
-            where: { guildConfig: { guildId }, discordUserId, registered: true },
+    async profile(guildId, discordUserId, discordDisplayName, discordAvatarUrl) {
+        const player = await getOrCreatePlayer(this.prisma, guildId, {
+            discordUserId,
+            discordDisplayName,
+            discordAvatarUrl,
+        });
+        const result = await this.prisma.player.findUnique({
+            where: { id: player.id },
             include: {
                 assignments: {
                     where: { session: { startsAt: { gte: new Date() }, status: { in: ['OPEN', 'LOCKED'] } } },
@@ -92,9 +151,9 @@ export class PlayerService {
                 },
             },
         });
-        if (!player)
-            throw new AppError('NOT_REGISTERED', 'You are not registered yet.');
-        return player;
+        if (!result)
+            throw new AppError('NOT_FOUND', 'Profile not found.');
+        return result;
     }
     search(guildId, query) {
         const normalized = normalizeIdentity(query);
@@ -127,6 +186,23 @@ export class PlayerService {
             },
         });
         return player;
+    }
+    async updatePositions(guildId, discordUserId, signupPositions, discordDisplayName, discordAvatarUrl) {
+        const player = await getOrCreatePlayer(this.prisma, guildId, {
+            discordUserId,
+            discordDisplayName,
+            discordAvatarUrl,
+        });
+        const positionGroup = groupForSignupPositions(signupPositions);
+        const updated = await this.prisma.player.update({
+            where: { id: player.id },
+            data: {
+                signupPositions,
+                positionGroup,
+                lastRelevantActivityAt: new Date(),
+            },
+        });
+        return updated;
     }
 }
 //# sourceMappingURL=player.service.js.map

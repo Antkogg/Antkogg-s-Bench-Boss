@@ -14,6 +14,7 @@ import { handleManagementModal, handleRegistrationModal } from '../interactions/
 import { handleSelectMenu } from '../interactions/select-menus.js';
 import { handleAvailabilityReminderButton, handleWeeklyAvailabilityButton, handleWeeklyAvailabilitySelect, } from '../interactions/weekly-availability.js';
 import { handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handlePlayerGameButton, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
+import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
 import { AppError, publicErrorMessage } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -33,7 +34,7 @@ export async function routeInteraction(interaction, context) {
             else if (interaction.commandName === 'board')
                 await handleBoard(interaction, context);
             else if (interaction.commandName === 'help')
-                await handleHelp(interaction);
+                await handleHelp(interaction, context);
             else if (interaction.commandName === 'availability')
                 await handleAvailability(interaction, context);
             else if (interaction.commandName === 'team')
@@ -62,7 +63,9 @@ export async function routeInteraction(interaction, context) {
         }
         if (interaction.isButton()) {
             const parsed = parseCustomId(interaction.customId);
-            if (parsed.action === 'weekly-availability')
+            if (parsed.action === 'welcome-group')
+                await handleWelcomeButton(interaction, context, parsed);
+            else if (parsed.action === 'weekly-availability')
                 await handleWeeklyAvailabilityButton(interaction, context, parsed);
             else if (parsed.action === 'availability-remind')
                 await handleAvailabilityReminderButton(interaction, context, parsed);
@@ -82,7 +85,9 @@ export async function routeInteraction(interaction, context) {
         }
         if (interaction.isStringSelectMenu()) {
             const parsed = parseCustomId(interaction.customId);
-            if (parsed.action === 'weekly-availability-select')
+            if (parsed.action === 'welcome-positions')
+                await handleWelcomeSelectMenu(interaction, context, parsed);
+            else if (parsed.action === 'weekly-availability-select')
                 await handleWeeklyAvailabilitySelect(interaction, context, parsed);
             else if (parsed.action === 'week-game-select')
                 await handleWeekGameSelect(interaction, context);
@@ -109,51 +114,53 @@ export async function routeInteraction(interaction, context) {
             return;
         }
         if (interaction.isAutocomplete()) {
-            if (interaction.commandName === 'scout') {
-                const focused = interaction.options.getFocused(true);
-                if (focused.name === 'time') {
-                    const value = focused.value.toLowerCase();
-                    const times = [
-                        '5:00 PM',
-                        '5:15 PM',
-                        '5:30 PM',
-                        '5:45 PM',
-                        '6:00 PM',
-                        '6:15 PM',
-                        '6:30 PM',
-                        '6:45 PM',
-                        '7:00 PM',
-                        '7:15 PM',
-                        '7:30 PM',
-                        '7:45 PM',
-                        '8:00 PM',
-                        '8:15 PM',
-                        '8:30 PM',
-                        '8:45 PM',
-                        '9:00 PM',
-                        '9:15 PM',
-                        '9:30 PM',
-                        '9:45 PM',
-                        '10:00 PM',
-                        '10:15 PM',
-                        '10:30 PM',
-                        '10:45 PM',
-                        '11:00 PM',
-                        '11:15 PM',
-                        '11:30 PM',
-                        '11:45 PM',
-                        '12:00 AM',
-                        '12:15 AM',
-                        '12:30 AM',
-                        '12:45 AM',
-                        '1:00 AM',
-                        '1:15 AM',
-                        '1:30 AM',
-                        '1:45 AM',
-                    ];
-                    const filtered = times.filter((t) => t.toLowerCase().includes(value)).slice(0, 25);
-                    await interaction.respond(filtered.map((choice) => ({ name: choice, value: choice })));
+            const focused = interaction.options.getFocused(true);
+            if (focused.name === 'time') {
+                const raw = focused.value.trim().toLowerCase();
+                const allTimes = [];
+                const hoursOrder = [
+                    { h: 3, p: 'PM' }, { h: 4, p: 'PM' }, { h: 5, p: 'PM' }, { h: 6, p: 'PM' },
+                    { h: 7, p: 'PM' }, { h: 8, p: 'PM' }, { h: 9, p: 'PM' }, { h: 10, p: 'PM' },
+                    { h: 11, p: 'PM' }, { h: 12, p: 'PM' }, { h: 1, p: 'PM' }, { h: 2, p: 'PM' },
+                    { h: 12, p: 'AM' }, { h: 1, p: 'AM' }, { h: 2, p: 'AM' }, { h: 3, p: 'AM' },
+                    { h: 4, p: 'AM' }, { h: 5, p: 'AM' }, { h: 6, p: 'AM' }, { h: 7, p: 'AM' },
+                    { h: 8, p: 'AM' }, { h: 9, p: 'AM' }, { h: 10, p: 'AM' }, { h: 11, p: 'AM' },
+                ];
+                for (const item of hoursOrder) {
+                    for (const min of ['00', '15', '30', '45']) {
+                        allTimes.push(`${item.h}:${min} ${item.p}`);
+                    }
                 }
+                let filtered = allTimes;
+                if (raw) {
+                    const cleanDigits = raw.replace(/[^0-9]/g, '');
+                    const hasP = raw.includes('p');
+                    const hasA = raw.includes('a');
+                    filtered = allTimes.filter((t) => {
+                        const tLower = t.toLowerCase();
+                        const hourStr = t.split(':')[0];
+                        const noSpace = tLower.replace(/\s+/g, '');
+                        const isPm = tLower.includes('pm');
+                        const isAm = tLower.includes('am');
+                        if (hasP && !isPm)
+                            return false;
+                        if (hasA && !isAm)
+                            return false;
+                        return (tLower.includes(raw) ||
+                            noSpace.includes(raw.replace(/\s+/g, '')) ||
+                            hourStr === raw ||
+                            (cleanDigits.length > 0 &&
+                                (hourStr === cleanDigits || noSpace.replace(/[^0-9]/g, '').startsWith(cleanDigits))));
+                    });
+                }
+                await interaction.respond(filtered.slice(0, 25).map((choice) => ({ name: choice, value: choice })));
+            }
+            else if ((focused.name === 'player' || focused.name === 'query') && interaction.guildId) {
+                const players = await context.players.search(interaction.guildId, focused.value);
+                await interaction.respond(players.slice(0, 25).map((p) => ({
+                    name: `${p.discordDisplayName} (${p.eaTag})`,
+                    value: p.discordUserId,
+                })));
             }
             return;
         }

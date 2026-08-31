@@ -31,6 +31,10 @@ const actionSchema = z.enum([
     'rules-action',
     'modal-register',
     'modal-manage',
+    'manage-hub',
+    'welcome-group',
+    'welcome-positions',
+    'welcome-mode',
 ]);
 export function customId(action, entityId, value) {
     const id = ['bb', action, entityId, value].filter(Boolean).join(':');

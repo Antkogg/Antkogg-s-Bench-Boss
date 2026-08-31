@@ -137,4 +137,8 @@ export const GameAvailabilityStatus = {
     AVAILABLE: 'AVAILABLE',
     UNAVAILABLE: 'UNAVAILABLE'
 };
+export const WelcomeMode = {
+    SCOUTING: 'SCOUTING',
+    SEASON: 'SEASON'
+};
 //# sourceMappingURL=enums.js.map

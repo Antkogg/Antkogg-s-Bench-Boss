@@ -1,4 +1,5 @@
 import { AppError } from '../utils/errors.js';
+import { getOrCreatePlayer } from './player.service.js';
 export class WeeklyAvailabilityService {
     prisma;
     constructor(prisma) {
@@ -96,16 +97,12 @@ export class WeeklyAvailabilityService {
     async submit(input) {
         const [week, player] = await Promise.all([
             this.getWeek(input.weekId),
-            this.prisma.player.findFirst({
-                where: {
-                    guildConfig: { guildId: input.guildId },
-                    discordUserId: input.discordUserId,
-                    registered: true,
-                },
+            getOrCreatePlayer(this.prisma, input.guildId, {
+                discordUserId: input.discordUserId,
             }),
         ]);
         if (!week || !player)
-            throw new AppError('NOT_FOUND', 'Week or registered player not found.');
+            throw new AppError('NOT_FOUND', 'Week or player not found.');
         if (week.guildConfigId !== player.guildConfigId)
             throw new AppError('NOT_ALLOWED', 'That availability week belongs to another server.');
         if (!input.managementOverride && player.teamStatus !== 'ROSTER' && player.teamStatus !== 'TC')

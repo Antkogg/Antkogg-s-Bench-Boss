@@ -4,7 +4,7 @@ export async function handleProfile(interaction, context) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Profiles are server-specific. Use this command in the server.');
     try {
-        const profile = await context.players.profile(interaction.guildId, interaction.user.id);
+        const profile = await context.players.profile(interaction.guildId, interaction.user.id, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL());
         await interaction.reply({ ephemeral: true, ...renderPlayerProfile(profile) });
     }
     catch (error) {

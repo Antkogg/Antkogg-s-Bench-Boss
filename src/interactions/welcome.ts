@@ -47,7 +47,7 @@ export async function handleWelcomeButton(
       interaction.user.displayAvatarURL(),
     );
 
-    const currentPositions = (existingPlayer?.signupPositions ?? []) as SignupPosition[];
+    const currentPositions = existingPlayer?.signupPositions ?? [];
     const targetGroup = groupForScoutingPosition(targetPosition);
 
     let nextPositions: SignupPosition[];

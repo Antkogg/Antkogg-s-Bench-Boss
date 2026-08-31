@@ -10,7 +10,7 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
         throw new AppError('NOT_ALLOWED', 'Submit availability inside the server.');
     const [week, player] = await Promise.all([
         context.weeklyAvailability.getWeek(parsed.entityId),
-        context.players.byDiscordId(interaction.guildId, interaction.user.id),
+        context.players.byDiscordId(interaction.guildId, interaction.user.id, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL()),
     ]);
     if (!week)
         throw new AppError('STALE_INTERACTION', 'This availability week no longer exists.');

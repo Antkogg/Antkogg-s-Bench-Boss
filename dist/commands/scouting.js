@@ -1,8 +1,9 @@
+import { parseFlexibleTime } from '../utils/normalize.js';
 import { DateTime } from 'luxon';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { capacity } from '../domain/scouting.js';
-import { renderManagementPanel } from '../renderers/management.renderer.js';
+import { renderManagementPanel, renderMasterDashboard } from '../renderers/management.renderer.js';
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 export async function handleScoutingBrowser(interaction, context) {
@@ -49,6 +50,19 @@ export async function handleScout(interaction, context) {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === 'upcoming')
         return handleScoutingBrowser(interaction, context);
+    if (subcommand === 'panel') {
+        const dashboard = renderMasterDashboard();
+        if (interaction.channel && 'send' in interaction.channel) {
+            await interaction.channel.send(dashboard);
+        }
+        await interaction.reply({
+            ephemeral: true,
+            embeds: [
+                renderSuccess('Master Management Dashboard Posted', 'The private management control panel has been posted to this channel.'),
+            ],
+        });
+        return;
+    }
     if (subcommand === 'create') {
         if (!config.scoutingChannelId)
             throw new AppError('NOT_CONFIGURED', 'Configure the scouting channel with `/setup channels` first.');
@@ -76,27 +90,7 @@ export async function handleScout(interaction, context) {
                 starts = starts.plus({ days: daysToAdd });
             }
         }
-        let hours = 0;
-        let minutes = 0;
-        const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-        if (timeMatch && timeMatch[1] && timeMatch[2]) {
-            hours = parseInt(timeMatch[1], 10);
-            minutes = parseInt(timeMatch[2], 10);
-        }
-        else {
-            const pmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)$/i);
-            if (pmMatch && pmMatch[1] && pmMatch[3]) {
-                hours = parseInt(pmMatch[1], 10);
-                minutes = parseInt(pmMatch[2] || '0', 10);
-                if (pmMatch[3].toLowerCase() === 'pm' && hours < 12)
-                    hours += 12;
-                if (pmMatch[3].toLowerCase() === 'am' && hours === 12)
-                    hours = 0;
-            }
-            else {
-                throw new AppError('INVALID_INPUT', 'Please select a valid time from the dropdown suggestions.');
-            }
-        }
+        const { hours, minutes } = parseFlexibleTime(timeStr);
         starts = starts.set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
         if (!starts.isValid)
             throw new AppError('INVALID_INPUT', 'Failed to parse the selected date and time.');

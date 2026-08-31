@@ -11,6 +11,13 @@ export class AppError extends Error {
 export function publicErrorMessage(error) {
     if (error instanceof AppError)
         return error.message;
-    return 'Something went wrong. Your data is safe—please try again in a moment.';
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+        const msg = error.message;
+        if (msg.includes('Missing Access') || msg.includes('Unknown Channel')) {
+            return 'The bot could not access your scouting channel. Run `/setup channels scouting:#channel-name` and check bot permissions.';
+        }
+        return msg;
+    }
+    return 'Something went wrong. Please run `/setup view` to verify server channels and permissions.';
 }
 //# sourceMappingURL=errors.js.map

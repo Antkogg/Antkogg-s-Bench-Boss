@@ -125,6 +125,10 @@ export const GuildConfigScalarFieldEnum = {
     teamAnnouncementsChannelId: 'teamAnnouncementsChannelId',
     managementChannelId: 'managementChannelId',
     rulesChannelId: 'rulesChannelId',
+    welcomeChannelId: 'welcomeChannelId',
+    welcomeMode: 'welcomeMode',
+    s55GoalsChannelId: 's55GoalsChannelId',
+    lgRulesChannelId: 'lgRulesChannelId',
     teamName: 'teamName',
     seasonLabel: 'seasonLabel',
     defaultFormat: 'defaultFormat',
@@ -373,6 +377,7 @@ export const AvailabilityScalarFieldEnum = {
     id: 'id',
     sessionId: 'sessionId',
     playerId: 'playerId',
+    position: 'position',
     createdAt: 'createdAt'
 };
 export const AttendanceScalarFieldEnum = {

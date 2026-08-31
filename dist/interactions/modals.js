@@ -1,16 +1,18 @@
+import { DateTime } from 'luxon';
+import { parseFlexibleTime } from '../utils/normalize.js';
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, } from 'discord.js';
-import { renderSuccess } from '../renderers/design.js';
+import { discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
-function textInput(customIdValue, label, placeholder, maxLength, style = TextInputStyle.Short) {
+function textInput(customIdValue, label, placeholder, maxLength = 100, style = TextInputStyle.Short, required = true) {
     return new ActionRowBuilder().addComponents(new TextInputBuilder()
         .setCustomId(customIdValue)
         .setLabel(label)
         .setPlaceholder(placeholder)
         .setMaxLength(maxLength)
         .setStyle(style)
-        .setRequired(true));
+        .setRequired(required));
 }
 export async function showRegistrationModal(interaction) {
     await interaction.showModal(new ModalBuilder()
@@ -81,6 +83,12 @@ export async function showManagementModal(interaction, parsed) {
     else if (kind === 'evaluate') {
         modal.addComponents(textInput('ratings', 'O / OFF / DEF / IQ / PUCK / COMMS', 'Example: 4,4,5,4,3,5', 20), textInput('body', 'Private evaluation note', 'Only management can see this', 1000, TextInputStyle.Paragraph));
     }
+    else if (kind === 'create-session') {
+        modal.addComponents(textInput('date', 'Date', 'Today, Tomorrow, Monday, Tuesday, etc.', 20), textInput('time', 'Start Time', 'Example: 8:30 PM', 20), textInput('format', 'Format (optional)', 'ONE_SIDE or PRIVATE_6V6', 20), textInput('title', 'Title / Note (optional)', 'e.g. Scouting vs Opponent', 100));
+    }
+    else if (kind === 'search-player') {
+        modal.addComponents(textInput('player', 'Player EA Tag, Discord Name, or ID', 'Search query', 50));
+    }
     await interaction.showModal(modal);
 }
 function parseScoutingPosition(value) {
@@ -137,6 +145,75 @@ export async function handleManagementModal(interaction, context, parsed) {
         });
         return;
     }
+    if (kind === 'search-player') {
+        const query = interaction.fields.getTextInputValue('player');
+        const players = await context.players.search(interaction.guildId, query);
+        if (!players.length)
+            throw new AppError('NOT_FOUND', `No matching player found for "${query}".`);
+        const target = players[0];
+        const view = await context.evaluations.playerView(target.id);
+        const assignments = view.assignments ?? [];
+        const details = `**EA Tag:** \`${target.eaTag}\`\n**Discord:** <@${target.discordUserId}>\n**Positions:** ${(target.signupPositions ?? []).join(', ') || 'ALL'}\n**Scouting Games:** ${assignments.length}`;
+        await interaction.reply({
+            ephemeral: true,
+            embeds: [renderSuccess(`Player Info: ${target.discordDisplayName}`, details)],
+        });
+        return;
+    }
+    if (kind === 'create-session') {
+        if (!config.scoutingChannelId)
+            throw new AppError('NOT_CONFIGURED', 'Configure the scouting channel with `/setup channels` first.');
+        const dateStr = interaction.fields.getTextInputValue('date').trim();
+        const timeStr = interaction.fields.getTextInputValue('time').trim();
+        const formatInput = interaction.fields.getTextInputValue('format').trim().toUpperCase();
+        const title = interaction.fields.getTextInputValue('title').trim();
+        let starts = DateTime.now().setZone(config.timezone);
+        if (dateStr.toLowerCase() === 'tomorrow') {
+            starts = starts.plus({ days: 1 });
+        }
+        else if (dateStr.toLowerCase() !== 'today') {
+            const targetDayMap = {
+                monday: 1,
+                tuesday: 2,
+                wednesday: 3,
+                thursday: 4,
+                friday: 5,
+                saturday: 6,
+                sunday: 7,
+            };
+            const targetDay = targetDayMap[dateStr.toLowerCase()];
+            if (targetDay) {
+                let daysToAdd = targetDay - starts.weekday;
+                if (daysToAdd <= 0)
+                    daysToAdd += 7;
+                starts = starts.plus({ days: daysToAdd });
+            }
+        }
+        const { hours, minutes } = parseFlexibleTime(timeStr);
+        starts = starts.set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
+        if (!starts.isValid)
+            throw new AppError('INVALID_INPUT', 'Failed to parse the selected date and time.');
+        if (starts.toMillis() < Date.now() - 60_000)
+            throw new AppError('INVALID_INPUT', 'Scouting must start in the future.');
+        await interaction.deferReply({ ephemeral: true });
+        const format = formatInput === 'PRIVATE_6V6' ? 'PRIVATE_6V6' : 'ONE_SIDE';
+        const session = await context.scouting.create({
+            guildId: interaction.guildId,
+            startsAt: starts.toUTC().toJSDate(),
+            durationMinutes: config.defaultDurationMinutes,
+            format,
+            signupMode: 'OPEN_SIGNUP',
+            ...(title ? { note: title } : {}),
+            createdByDiscordId: interaction.user.id,
+        });
+        await context.posts.publish(session);
+        await interaction.editReply({
+            embeds: [
+                renderSuccess('Scouting Session Posted!', `${discordTimestamp(session.startsAt, 'F')} is live in <#${config.scoutingChannelId}>.`),
+            ],
+        });
+        return;
+    }
     const query = kind === 'swap'
         ? interaction.fields.getTextInputValue('first')
         : interaction.fields.getTextInputValue('player');
@@ -151,9 +228,10 @@ export async function handleManagementModal(interaction, context, parsed) {
     const affectedUserIds = [player.discordUserId];
     if (kind === 'add') {
         const overrides = interaction.fields.getTextInputValue('overrides').trim().toUpperCase();
-        await context.scouting.signup({
+        await context.scouting.assignLineupPlayer({
             guildId: interaction.guildId,
             discordUserId: player.discordUserId,
+            discordDisplayName: player.discordDisplayName,
             sessionId: parsed.entityId,
             position: parseScoutingPosition(interaction.fields.getTextInputValue('position')),
             eligibilityOverride: ['ELIGIBILITY', 'BOTH'].includes(overrides),

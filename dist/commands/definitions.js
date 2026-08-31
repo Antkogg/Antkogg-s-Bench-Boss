@@ -109,7 +109,26 @@ export const commandDefinitions = [
         .setMaxValue(1440))
         .addBooleanOption((option) => option
         .setName('notify_game_info')
-        .setDescription('DM confirmed players when server/code is set'))),
+        .setDescription('DM confirmed players when server/code is set')))
+        .addSubcommand((sub) => sub
+        .setName('welcome')
+        .setDescription('Configure Discord welcome mode and channels')
+        .addStringOption((option) => option
+        .setName('mode')
+        .setDescription('Select welcome mode: Scouting Mode or Season Mode')
+        .addChoices({ name: 'Scouting Mode (pre-season scouting)', value: 'SCOUTING' }, { name: 'Season Mode (roster players & game fill-ins)', value: 'SEASON' }))
+        .addChannelOption((option) => option
+        .setName('welcome_channel')
+        .setDescription('Channel for welcome messages (default: 1533692233268728068)')
+        .addChannelTypes(ChannelType.GuildText))
+        .addChannelOption((option) => option
+        .setName('s55_goals')
+        .setDescription('Goals & info channel (default: 1534700577789841418)')
+        .addChannelTypes(ChannelType.GuildText))
+        .addChannelOption((option) => option
+        .setName('lg_rules')
+        .setDescription('LG rules & info channel (default: 1543414198741237911)')
+        .addChannelTypes(ChannelType.GuildText))),
     new SlashCommandBuilder()
         .setName('scout')
         .setDescription('Create and manage scouting sessions')
@@ -143,7 +162,8 @@ export const commandDefinitions = [
         .setName('manage')
         .setDescription('Open the private management panel')
         .addStringOption((option) => option.setName('session').setDescription('Session ID (omit for next session)')))
-        .addSubcommand((sub) => sub.setName('upcoming').setDescription('View upcoming sessions')),
+        .addSubcommand((sub) => sub.setName('upcoming').setDescription('View upcoming sessions'))
+        .addSubcommand((sub) => sub.setName('panel').setDescription('Post the Master Management Dashboard to the current channel')),
     new SlashCommandBuilder()
         .setName('player')
         .setDescription('Find a player and open the private management view')

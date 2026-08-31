@@ -17,6 +17,7 @@ import { WeeklyAvailabilityService } from '../services/weekly-availability.servi
 import { TeamService } from '../services/team.service.js';
 import { RulesService } from '../services/rules.service.js';
 import { ScheduleService } from '../services/schedule.service.js';
+import { WelcomeService } from '../services/welcome.service.js';
 import { logger } from '../utils/logger.js';
 import { routeInteraction } from './interaction-router.js';
 export function createLgAssistantApp(env) {
@@ -48,6 +49,7 @@ export function createLgAssistantApp(env) {
     const scouting = new ScoutingService(prisma);
     const notifications = new NotificationService(client);
     const weeklyAvailability = new WeeklyAvailabilityService(prisma);
+    const welcome = new WelcomeService(prisma);
     const context = {
         client,
         prisma,
@@ -65,10 +67,12 @@ export function createLgAssistantApp(env) {
         rules: new RulesService(prisma),
         schedule: new ScheduleService(prisma),
         board: new BoardService(prisma),
+        welcome,
     };
     const reminders = new ScoutingReminderJob(prisma, scouting, notifications);
     const availabilityReminders = new WeeklyAvailabilityReminderJob(prisma, weeklyAvailability, notifications);
     const gameDayReminders = new GameDayReminderJob(prisma, notifications);
+    client.on('guildMemberAdd', (member) => void welcome.handleMemberAdd(member));
     client.on('interactionCreate', (interaction) => void routeInteraction(interaction, context));
     client.once('ready', (readyClient) => {
         logger.info({ user: readyClient.user.tag, guilds: readyClient.guilds.cache.size }, "Antkogg's LG Assistant is ready");

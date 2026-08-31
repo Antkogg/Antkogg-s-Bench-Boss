@@ -1,8 +1,10 @@
 import { AppError } from '../utils/errors.js';
-import { renderSuccess } from '../renderers/design.js';
+import { renderSuccess, discordTimestamp } from '../renderers/design.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { showManagementModal } from './modals.js';
 import { signupPositionLabel } from '../domain/positions.js';
+import { renderManagementPanel } from '../renderers/management.renderer.js';
+import { launchSessionFromPreset } from './management-buttons.js';
 export async function handleSelectMenu(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this management control in the server.');
@@ -12,6 +14,51 @@ export async function handleSelectMenu(interaction, context, parsed) {
     ]);
     if (!hasManagementAccess(accessLevel(member, config)))
         throw new AppError('NOT_ALLOWED', 'This menu is private to LG Assistant management.');
+    if (parsed.action === 'manage-hub' && parsed.value === 'create-date') {
+        const rawValue = interaction.values[0];
+        const [dateStr, timeStr] = rawValue.split('.');
+        const { session, config: gConfig } = await launchSessionFromPreset(context, interaction.guildId, interaction.user.id, dateStr ?? 'Today', timeStr ?? '8:30 PM');
+        await interaction.update({
+            embeds: [
+                renderSuccess('Scouting Session Live!', `${discordTimestamp(session.startsAt, 'F')} is now live in <#${gConfig.scoutingChannelId}>.`),
+            ],
+            components: [],
+        });
+        return;
+    }
+    if (parsed.action === 'manage-hub' && parsed.value === 'set-tz') {
+        const timezone = interaction.values[0];
+        await context.config.update({ guildId: interaction.guildId, actorDiscordId: interaction.user.id, timezone });
+        await interaction.update({
+            embeds: [renderSuccess('Timezone Updated', `Server timezone is now set to **${timezone}**.`)],
+            components: [],
+        });
+        return;
+    }
+    if (parsed.action === 'manage-hub' && parsed.value === 'select-session') {
+        const sessionId = interaction.values[0];
+        const session = await context.scouting.get(sessionId);
+        if (!session)
+            throw new AppError('NOT_FOUND', 'Scouting session not found.');
+        await interaction.update(renderManagementPanel(session));
+        return;
+    }
+    if (parsed.action === 'manage-action' && parsed.value === 'confirm-pool') {
+        const rawValue = interaction.values[0];
+        if (!rawValue)
+            throw new AppError('INVALID_INPUT', 'No player selected.');
+        const [targetDiscordUserId, targetPosition] = rawValue.split('.');
+        const session = await context.scouting.assignLineupPlayer({
+            guildId: interaction.guildId,
+            sessionId: parsed.entityId,
+            discordUserId: targetDiscordUserId,
+            position: targetPosition ?? 'LW',
+            actorDiscordId: interaction.user.id,
+        });
+        await context.posts.queueRefresh(session.id);
+        await interaction.update(renderManagementPanel(session));
+        return;
+    }
     if (parsed.action === 'manage-action' && parsed.value === 'lineup') {
         const value = interaction.values[0];
         if (['add', 'remove', 'move', 'swap'].includes(value ?? '')) {
