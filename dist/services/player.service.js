@@ -36,7 +36,7 @@ export async function getOrCreatePlayer(prisma, guildId, user) {
                 lgUsernameNormalized: normalizeIdentity(displayName),
                 eaTag: displayName,
                 eaTagNormalized: normalizeIdentity(displayName),
-                signupPositions: ['LW', 'C', 'RW', 'LD', 'RD', 'G'],
+                signupPositions: [],
                 positionGroup: 'FORWARD',
                 registered: true,
             },

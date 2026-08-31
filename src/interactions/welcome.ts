@@ -47,23 +47,21 @@ export async function handleWelcomeButton(
       interaction.user.displayAvatarURL(),
     );
 
-    const currentPositions = existingPlayer?.signupPositions ?? [];
+    const currentPositions = (existingPlayer?.signupPositions ?? []) as SignupPosition[];
     const targetGroup = groupForScoutingPosition(targetPosition);
+    const sameGroupPositions = currentPositions.filter(
+      (p: SignupPosition) => groupForScoutingPosition(p) === targetGroup,
+    );
 
     let nextPositions: SignupPosition[];
-    if (currentPositions.length > 0) {
-      const currentGroup = groupForScoutingPosition(currentPositions[0]!);
-      if (currentGroup === targetGroup) {
-        if (currentPositions.includes(targetPosition)) {
-          nextPositions =
-            currentPositions.length > 1
-              ? currentPositions.filter((p) => p !== targetPosition)
-              : currentPositions;
-        } else {
-          nextPositions = [...currentPositions, targetPosition];
-        }
+    if (sameGroupPositions.length > 0 && sameGroupPositions.length === currentPositions.length) {
+      if (sameGroupPositions.includes(targetPosition)) {
+        nextPositions =
+          sameGroupPositions.length > 1
+            ? sameGroupPositions.filter((p) => p !== targetPosition)
+            : sameGroupPositions;
       } else {
-        nextPositions = [targetPosition];
+        nextPositions = [...sameGroupPositions, targetPosition];
       }
     } else {
       nextPositions = [targetPosition];
