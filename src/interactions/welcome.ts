@@ -1,4 +1,4 @@
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { ButtonInteraction, GuildMember, StringSelectMenuInteraction } from 'discord.js';
 import type { BotContext } from '../commands/context.js';
 import type { PositionGroup, SignupPosition } from '../generated/prisma/client.js';
 import { renderSuccess, renderError } from '../renderers/design.js';
@@ -19,21 +19,17 @@ export async function handleWelcomeButton(
     throw new AppError('NOT_ALLOWED', 'Role selection must be completed inside the server.');
   }
 
+  await interaction.deferReply({ ephemeral: true });
+
   const selected = parsed.value as SignupPosition | 'FORWARD' | 'DEFENSE' | 'GOALIE';
 
   if (selected === 'FORWARD') {
-    await interaction.reply({
-      ephemeral: true,
-      ...renderForwardPositionSelect(interaction.user.id),
-    });
+    await interaction.editReply(renderForwardPositionSelect(interaction.user.id));
     return;
   }
 
   if (selected === 'DEFENSE') {
-    await interaction.reply({
-      ephemeral: true,
-      ...renderDefensePositionSelect(interaction.user.id),
-    });
+    await interaction.editReply(renderDefensePositionSelect(interaction.user.id));
     return;
   }
 
@@ -62,8 +58,7 @@ export async function handleWelcomeButton(
         targetGroup === 'FORWARD' ? 'Forward' : targetGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
       const currentList = signupPositionLabel(currentPositions);
 
-      await interaction.reply({
-        ephemeral: true,
+      await interaction.editReply({
         embeds: [
           renderError(
             `You currently have **${activeGroupLabel}** position(s) selected (**${currentList}**).\n\n` +
@@ -90,13 +85,14 @@ export async function handleWelcomeButton(
     );
 
     const config = await context.config.ensure(interaction.guildId);
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const member =
+      (interaction.member as GuildMember | null) ??
+      (await interaction.guild.members.fetch(interaction.user.id));
     await context.roles.sync(member, updatedPlayer, config);
 
     const posLabel = nextPositions.length > 0 ? signupPositionLabel(nextPositions) : 'None';
 
-    await interaction.reply({
-      ephemeral: true,
+    await interaction.editReply({
       embeds: [
         renderSuccess(
           nextPositions.length > 0 ? 'Position Roles Saved!' : 'Position Roles Cleared!',

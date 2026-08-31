@@ -6,19 +6,14 @@ export async function handleWelcomeButton(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild) {
         throw new AppError('NOT_ALLOWED', 'Role selection must be completed inside the server.');
     }
+    await interaction.deferReply({ ephemeral: true });
     const selected = parsed.value;
     if (selected === 'FORWARD') {
-        await interaction.reply({
-            ephemeral: true,
-            ...renderForwardPositionSelect(interaction.user.id),
-        });
+        await interaction.editReply(renderForwardPositionSelect(interaction.user.id));
         return;
     }
     if (selected === 'DEFENSE') {
-        await interaction.reply({
-            ephemeral: true,
-            ...renderDefensePositionSelect(interaction.user.id),
-        });
+        await interaction.editReply(renderDefensePositionSelect(interaction.user.id));
         return;
     }
     const validPositions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
@@ -35,8 +30,7 @@ export async function handleWelcomeButton(interaction, context, parsed) {
             const activeGroupLabel = currentGroup === 'FORWARD' ? 'Forward' : currentGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
             const targetGroupLabel = targetGroup === 'FORWARD' ? 'Forward' : targetGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
             const currentList = signupPositionLabel(currentPositions);
-            await interaction.reply({
-                ephemeral: true,
+            await interaction.editReply({
                 embeds: [
                     renderError(`You currently have **${activeGroupLabel}** position(s) selected (**${currentList}**).\n\n` +
                         `To select a **${targetGroupLabel}** position, please click your active position button(s) to unselect them first.`),
@@ -53,11 +47,11 @@ export async function handleWelcomeButton(interaction, context, parsed) {
         }
         const updatedPlayer = await context.players.updatePositions(interaction.guildId, interaction.user.id, nextPositions, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL());
         const config = await context.config.ensure(interaction.guildId);
-        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const member = interaction.member ??
+            (await interaction.guild.members.fetch(interaction.user.id));
         await context.roles.sync(member, updatedPlayer, config);
         const posLabel = nextPositions.length > 0 ? signupPositionLabel(nextPositions) : 'None';
-        await interaction.reply({
-            ephemeral: true,
+        await interaction.editReply({
             embeds: [
                 renderSuccess(nextPositions.length > 0 ? 'Position Roles Saved!' : 'Position Roles Cleared!', nextPositions.length > 0
                     ? `Your position(s) have been set to **${posLabel}** and your server roles have been updated.`
