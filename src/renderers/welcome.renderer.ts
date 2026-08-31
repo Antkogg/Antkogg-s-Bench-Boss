@@ -67,7 +67,9 @@ export function renderWelcomeEmbed(member: GuildMember, config: GuildConfig) {
       },
       {
         name: '🎯 Select Your Position',
-        value: 'Click a button below to select your position role.',
+        value:
+          `Click the buttons below to select the position(s) you play in LG.\n` +
+          `*Note: You can select multiple positions within the same category (e.g. LW and RW). To switch to a different category, unselect your current position(s) first.*`,
       },
     );
 

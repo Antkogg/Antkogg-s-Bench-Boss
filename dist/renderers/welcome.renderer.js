@@ -47,7 +47,8 @@ export function renderWelcomeEmbed(member, config) {
         value: `Please make sure to check out these channels:\n${channelLines.join('\n')}`,
     }, {
         name: '🎯 Select Your Position',
-        value: 'Click a button below to select your position role.',
+        value: `Click the buttons below to select the position(s) you play in LG.\n` +
+            `*Note: You can select multiple positions within the same category (e.g. LW and RW). To switch to a different category, unselect your current position(s) first.*`,
     });
     const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId(customId('welcome-group', member.id, 'LW'))

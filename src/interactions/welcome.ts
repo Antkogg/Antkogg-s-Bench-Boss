@@ -1,6 +1,6 @@
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import type { BotContext } from '../commands/context.js';
-import type { SignupPosition } from '../generated/prisma/client.js';
+import type { PositionGroup, SignupPosition } from '../generated/prisma/client.js';
 import { renderSuccess, renderError } from '../renderers/design.js';
 import {
   renderForwardPositionSelect,
@@ -49,22 +49,36 @@ export async function handleWelcomeButton(
 
     const currentPositions = (existingPlayer?.signupPositions ?? []) as SignupPosition[];
     const targetGroup = groupForScoutingPosition(targetPosition);
-    const sameGroupPositions = currentPositions.filter(
-      (p: SignupPosition) => groupForScoutingPosition(p) === targetGroup,
-    );
+
+    let currentGroup: PositionGroup | null = null;
+    if (currentPositions.length > 0) {
+      currentGroup = groupForScoutingPosition(currentPositions[0]!);
+    }
+
+    if (currentGroup && currentGroup !== targetGroup) {
+      const activeGroupLabel =
+        currentGroup === 'FORWARD' ? 'Forward' : currentGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
+      const targetGroupLabel =
+        targetGroup === 'FORWARD' ? 'Forward' : targetGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
+      const currentList = signupPositionLabel(currentPositions);
+
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [
+          renderError(
+            `You currently have **${activeGroupLabel}** position(s) selected (**${currentList}**).\n\n` +
+              `To select a **${targetGroupLabel}** position, please click your active position button(s) to unselect them first.`,
+          ),
+        ],
+      });
+      return;
+    }
 
     let nextPositions: SignupPosition[];
-    if (sameGroupPositions.length > 0 && sameGroupPositions.length === currentPositions.length) {
-      if (sameGroupPositions.includes(targetPosition)) {
-        nextPositions =
-          sameGroupPositions.length > 1
-            ? sameGroupPositions.filter((p) => p !== targetPosition)
-            : sameGroupPositions;
-      } else {
-        nextPositions = [...sameGroupPositions, targetPosition];
-      }
+    if (currentPositions.includes(targetPosition)) {
+      nextPositions = currentPositions.filter((p) => p !== targetPosition);
     } else {
-      nextPositions = [targetPosition];
+      nextPositions = [...currentPositions, targetPosition];
     }
 
     const updatedPlayer = await context.players.updatePositions(
@@ -79,12 +93,16 @@ export async function handleWelcomeButton(
     const member = await interaction.guild.members.fetch(interaction.user.id);
     await context.roles.sync(member, updatedPlayer, config);
 
+    const posLabel = nextPositions.length > 0 ? signupPositionLabel(nextPositions) : 'None';
+
     await interaction.reply({
       ephemeral: true,
       embeds: [
         renderSuccess(
-          'Position Roles Saved!',
-          `Your position(s) have been set to **${signupPositionLabel(nextPositions)}** and your server roles have been updated.`,
+          nextPositions.length > 0 ? 'Position Roles Saved!' : 'Position Roles Cleared!',
+          nextPositions.length > 0
+            ? `Your position(s) have been set to **${posLabel}** and your server roles have been updated.`
+            : 'You have unselected all positions. Your position roles have been removed.',
         ),
       ],
     });
