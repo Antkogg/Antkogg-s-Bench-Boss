@@ -1,4 +1,4 @@
-import { renderSuccess, renderError } from '../renderers/design.js';
+import { brandedEmbed, renderSuccess, renderError } from '../renderers/design.js';
 import { renderForwardPositionSelect, renderDefensePositionSelect, } from '../renderers/welcome.renderer.js';
 import { signupPositionLabel, groupForScoutingPosition } from '../domain/positions.js';
 import { AppError } from '../utils/errors.js';
@@ -14,6 +14,30 @@ export async function handleWelcomeButton(interaction, context, parsed) {
     }
     if (selected === 'DEFENSE') {
         await interaction.editReply(renderDefensePositionSelect(interaction.user.id));
+        return;
+    }
+    if (selected === 'VIEW') {
+        const existingPlayer = await context.players.byDiscordId(interaction.guildId, interaction.user.id, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL());
+        const positions = (existingPlayer?.signupPositions ?? []);
+        const posLabel = positions.length > 0 ? signupPositionLabel(positions) : 'None';
+        const groupLabel = positions.length > 0
+            ? groupForScoutingPosition(positions[0]) === 'FORWARD'
+                ? 'Forward'
+                : groupForScoutingPosition(positions[0]) === 'DEFENSE'
+                    ? 'Defense'
+                    : 'Goalie'
+            : 'None';
+        await interaction.editReply({
+            embeds: [
+                brandedEmbed()
+                    .setTitle('📋 Your Selected Positions')
+                    .setDescription(`**Active Positions:** ${posLabel}\n` +
+                    `**Category:** ${groupLabel}\n\n` +
+                    (positions.length > 0
+                        ? `*Click a selected position button to unselect it, or click another position in the same category to add it.*`
+                        : `*Click any position button below to select your playing position.*`)),
+            ],
+        });
         return;
     }
     const validPositions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];

@@ -103,7 +103,14 @@ export function renderWelcomeEmbed(member: GuildMember, config: GuildConfig) {
       .setStyle(ButtonStyle.Secondary),
   );
 
-  return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2] };
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', member.id, 'VIEW'))
+      .setLabel('📋 View My Selected Positions')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2, row3] };
 }
 
 export function renderRoleSelectPanel(guild: GuildMember['guild']) {
@@ -152,7 +159,14 @@ export function renderRoleSelectPanel(guild: GuildMember['guild']) {
       .setStyle(ButtonStyle.Secondary),
   );
 
-  return { embeds: [embed], components: [row1, row2] };
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'VIEW'))
+      .setLabel('📋 View My Selected Positions')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row1, row2, row3] };
 }
 
 export function renderForwardPositionSelect(memberId: string) {

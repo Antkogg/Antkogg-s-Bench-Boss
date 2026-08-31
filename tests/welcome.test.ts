@@ -73,9 +73,10 @@ describe('Welcome System', () => {
     expect(embed.fields![0]?.value).toContain('<#1534700577789841418>');
     expect(embed.fields![0]?.value).toContain('<#1543414198741237911>');
     expect(embed.fields![0]?.value).toContain('<#1111111111111111111>');
-    expect(res.components.length).toBe(2);
+    expect(res.components.length).toBe(3);
     expect(res.components[0]?.components.length).toBe(3);
     expect(res.components[1]?.components.length).toBe(3);
+    expect(res.components[2]?.components.length).toBe(1);
   });
 
   it('renders Season Mode welcome embed correctly', () => {
