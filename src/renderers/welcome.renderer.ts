@@ -106,6 +106,55 @@ export function renderWelcomeEmbed(member: GuildMember, config: GuildConfig) {
   return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2] };
 }
 
+export function renderRoleSelectPanel(guild: GuildMember['guild']) {
+  const iconUrl = guild?.iconURL({ size: 256 });
+  const embed = brandedEmbed()
+    .setTitle('🏒 LG Position Role Selection')
+    .setDescription(
+      `**Need to set or update your playing position(s)?**\n\n` +
+        `Click the buttons below to select the position(s) you play in LG. ` +
+        `Your server roles will automatically update to match your selections!\n\n` +
+        `*Note: You can select multiple positions within the same category (e.g. LW and RW). ` +
+        `To switch to a different category, unselect your current position(s) first.*`,
+    );
+
+  if (iconUrl) {
+    embed.setThumbnail(iconUrl);
+  }
+
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'LW'))
+      .setLabel('🏒 Left Wing (LW)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'C'))
+      .setLabel('🏒 Center (C)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'RW'))
+      .setLabel('🏒 Right Wing (RW)')
+      .setStyle(ButtonStyle.Primary),
+  );
+
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'LD'))
+      .setLabel('🛡️ Left Defense (LD)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'RD'))
+      .setLabel('🛡️ Right Defense (RD)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', 'panel', 'G'))
+      .setLabel('🥅 Goalie (G)')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row1, row2] };
+}
+
 export function renderForwardPositionSelect(memberId: string) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(customId('welcome-positions', memberId, 'FORWARD'))

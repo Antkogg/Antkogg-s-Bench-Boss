@@ -3,6 +3,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } fro
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import { customId } from '../utils/custom-id.js';
+import { renderRoleSelectPanel } from '../renderers/welcome.renderer.js';
 export async function handleSetup(interaction, context) {
     if (!interaction.inGuild() || !interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Setup is only available in a server.');
@@ -68,6 +69,20 @@ export async function handleSetup(interaction, context) {
         await interaction.reply({
             ephemeral: true,
             embeds: [renderSuccess('Onboarding posted', 'The registration panel has been posted.')],
+        });
+        return;
+    }
+    if (subcommand === 'role-panel') {
+        const targetChannel = interaction.options.getChannel('channel') ?? interaction.channel;
+        if (!targetChannel || !('isTextBased' in targetChannel) || !targetChannel.isTextBased())
+            throw new AppError('NOT_FOUND', 'Target channel must be a text-based channel.');
+        const panelData = renderRoleSelectPanel(interaction.guild);
+        await targetChannel.send(panelData);
+        await interaction.reply({
+            ephemeral: true,
+            embeds: [
+                renderSuccess('Role panel posted', `The permanent position role selection panel has been posted to <#${targetChannel.id}>.`),
+            ],
         });
         return;
     }

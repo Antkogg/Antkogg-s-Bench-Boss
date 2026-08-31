@@ -25,6 +25,17 @@ export const commandDefinitions = [
     )
     .addSubcommand((sub) =>
       sub
+        .setName('role-panel')
+        .setDescription('Post a permanent position role selection panel')
+        .addChannelOption((option) =>
+          option
+            .setName('channel')
+            .setDescription('Channel to post panel to (default: current channel)')
+            .addChannelTypes(ChannelType.GuildText),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName('channels')
         .setDescription("Configure Antkogg's LG Assistant channels")
         .addChannelOption((option) =>

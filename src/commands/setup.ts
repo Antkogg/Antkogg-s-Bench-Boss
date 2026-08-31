@@ -1,10 +1,11 @@
 import { DateTime } from 'luxon';
-import type { ChatInputCommandInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
 import type { BotContext } from './context.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import { customId } from '../utils/custom-id.js';
+import { renderRoleSelectPanel } from '../renderers/welcome.renderer.js';
 
 export async function handleSetup(
   interaction: ChatInputCommandInteraction,
@@ -92,7 +93,26 @@ export async function handleSetup(
     });
     return;
   }
-  if (subcommand === 'channels') {
+  if (subcommand === 'role-panel') {
+    const targetChannel = interaction.options.getChannel('channel') ?? interaction.channel;
+    if (!targetChannel || !('isTextBased' in targetChannel) || !targetChannel.isTextBased())
+      throw new AppError('NOT_FOUND', 'Target channel must be a text-based channel.');
+
+    const panelData = renderRoleSelectPanel(interaction.guild!);
+    await (targetChannel as TextChannel).send(panelData);
+
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [
+          renderSuccess(
+            'Role panel posted',
+            `The permanent position role selection panel has been posted to <#${targetChannel.id}>.`,
+          ),
+        ],
+      });
+      return;
+    }
+    if (subcommand === 'channels') {
     const scouting = interaction.options.getChannel('scouting', true);
     const management = interaction.options.getChannel('management');
     await context.config.update({
