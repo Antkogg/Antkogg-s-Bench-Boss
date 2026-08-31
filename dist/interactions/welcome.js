@@ -1,6 +1,6 @@
 import { MessageFlags } from 'discord.js';
 import { renderSuccess, renderError } from '../renderers/design.js';
-import { renderForwardPositionSelect, renderDefensePositionSelect, renderRoleSelectButtons, } from '../renderers/welcome.renderer.js';
+import { renderForwardPositionSelect, renderDefensePositionSelect, } from '../renderers/welcome.renderer.js';
 import { signupPositionLabel, groupForScoutingPosition } from '../domain/positions.js';
 import { AppError } from '../utils/errors.js';
 export async function handleWelcomeButton(interaction, context, parsed) {
@@ -33,7 +33,6 @@ export async function handleWelcomeButton(interaction, context, parsed) {
         if (currentPositions.length > 0) {
             currentGroup = groupForScoutingPosition(currentPositions[0]);
         }
-        const buttonRows = renderRoleSelectButtons(interaction.user.id);
         if (currentGroup && currentGroup !== targetGroup) {
             const activeGroupLabel = currentGroup === 'FORWARD' ? 'Forward' : currentGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
             const targetGroupLabel = targetGroup === 'FORWARD' ? 'Forward' : targetGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
@@ -41,9 +40,9 @@ export async function handleWelcomeButton(interaction, context, parsed) {
             await interaction.editReply({
                 embeds: [
                     renderError(`You currently have **${activeGroupLabel}** position(s) selected (**${currentList}**).\n\n` +
-                        `To select a **${targetGroupLabel}** position, please click your active position button(s) below to unselect them first.`),
+                        `To select a **${targetGroupLabel}** position, please click your active position button(s) to unselect them first.`),
                 ],
-                components: buttonRows,
+                components: [],
             });
             return;
         }
@@ -66,7 +65,7 @@ export async function handleWelcomeButton(interaction, context, parsed) {
                     ? `Your position(s) are now set to **${posLabel}** and your server roles have been updated.`
                     : 'You have unselected all positions. Your position roles have been removed.'),
             ],
-            components: buttonRows,
+            components: [],
         });
         return;
     }
