@@ -1,6 +1,29 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, } from 'discord.js';
 import { brandedEmbed } from './design.js';
 import { customId } from '../utils/custom-id.js';
+export function renderRoleSelectButtons(targetId = 'panel') {
+    const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()
+        .setCustomId(customId('welcome-group', targetId, 'LW'))
+        .setLabel('🏒 Left Wing (LW)')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('welcome-group', targetId, 'C'))
+        .setLabel('🏒 Center (C)')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('welcome-group', targetId, 'RW'))
+        .setLabel('🏒 Right Wing (RW)')
+        .setStyle(ButtonStyle.Primary));
+    const row2 = new ActionRowBuilder().addComponents(new ButtonBuilder()
+        .setCustomId(customId('welcome-group', targetId, 'LD'))
+        .setLabel('🛡️ Left Defense (LD)')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('welcome-group', targetId, 'RD'))
+        .setLabel('🛡️ Right Defense (RD)')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('welcome-group', targetId, 'G'))
+        .setLabel('🥅 Goalie (G)')
+        .setStyle(ButtonStyle.Secondary));
+    return [row1, row2];
+}
 export function renderWelcomeEmbed(member, config) {
     const isScouting = config.welcomeMode === 'SCOUTING';
     const goalsChannelId = config.s55GoalsChannelId ?? '1534700577789841418';
@@ -50,27 +73,7 @@ export function renderWelcomeEmbed(member, config) {
         value: `Click the buttons below to select the position(s) you play in LG.\n` +
             `*Note: You can select multiple positions within the same category (e.g. LW and RW). To switch to a different category, unselect your current position(s) first.*`,
     });
-    const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'LW'))
-        .setLabel('🏒 Left Wing (LW)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'C'))
-        .setLabel('🏒 Center (C)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'RW'))
-        .setLabel('🏒 Right Wing (RW)')
-        .setStyle(ButtonStyle.Primary));
-    const row2 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'LD'))
-        .setLabel('🛡️ Left Defense (LD)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'RD'))
-        .setLabel('🛡️ Right Defense (RD)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', member.id, 'G'))
-        .setLabel('🥅 Goalie (G)')
-        .setStyle(ButtonStyle.Secondary));
-    return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2] };
+    return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: renderRoleSelectButtons(member.id) };
 }
 export function renderRoleSelectPanel(guild) {
     const iconUrl = guild?.iconURL({ size: 256 });
@@ -84,27 +87,7 @@ export function renderRoleSelectPanel(guild) {
     if (iconUrl) {
         embed.setThumbnail(iconUrl);
     }
-    const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'LW'))
-        .setLabel('🏒 Left Wing (LW)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'C'))
-        .setLabel('🏒 Center (C)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'RW'))
-        .setLabel('🏒 Right Wing (RW)')
-        .setStyle(ButtonStyle.Primary));
-    const row2 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'LD'))
-        .setLabel('🛡️ Left Defense (LD)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'RD'))
-        .setLabel('🛡️ Right Defense (RD)')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('welcome-group', 'panel', 'G'))
-        .setLabel('🥅 Goalie (G)')
-        .setStyle(ButtonStyle.Secondary));
-    return { embeds: [embed], components: [row1, row2] };
+    return { embeds: [embed], components: renderRoleSelectButtons('panel') };
 }
 export function renderForwardPositionSelect(memberId) {
     const select = new StringSelectMenuBuilder()

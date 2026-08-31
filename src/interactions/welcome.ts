@@ -1,10 +1,12 @@
 import type { ButtonInteraction, GuildMember, StringSelectMenuInteraction } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import type { BotContext } from '../commands/context.js';
 import type { PositionGroup, SignupPosition } from '../generated/prisma/client.js';
-import { brandedEmbed, renderSuccess, renderError } from '../renderers/design.js';
+import { renderSuccess, renderError } from '../renderers/design.js';
 import {
   renderForwardPositionSelect,
   renderDefensePositionSelect,
+  renderRoleSelectButtons,
 } from '../renderers/welcome.renderer.js';
 import { signupPositionLabel, groupForScoutingPosition } from '../domain/positions.js';
 import type { ParsedCustomId } from '../utils/custom-id.js';
@@ -19,7 +21,12 @@ export async function handleWelcomeButton(
     throw new AppError('NOT_ALLOWED', 'Role selection must be completed inside the server.');
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  const isEphemeral = interaction.message?.flags?.has(MessageFlags.Ephemeral) ?? false;
+  if (isEphemeral) {
+    await interaction.deferUpdate();
+  } else {
+    await interaction.deferReply({ ephemeral: true });
+  }
 
   const selected = parsed.value as SignupPosition | 'FORWARD' | 'DEFENSE' | 'GOALIE';
 
@@ -30,41 +37,6 @@ export async function handleWelcomeButton(
 
   if (selected === 'DEFENSE') {
     await interaction.editReply(renderDefensePositionSelect(interaction.user.id));
-    return;
-  }
-
-  if ((selected as string) === 'VIEW') {
-    const existingPlayer = await context.players.byDiscordId(
-      interaction.guildId,
-      interaction.user.id,
-      interaction.user.displayName ?? interaction.user.username,
-      interaction.user.displayAvatarURL(),
-    );
-
-    const positions = (existingPlayer?.signupPositions ?? []) as SignupPosition[];
-    const posLabel = positions.length > 0 ? signupPositionLabel(positions) : 'None';
-    const groupLabel =
-      positions.length > 0
-        ? groupForScoutingPosition(positions[0]!) === 'FORWARD'
-          ? 'Forward'
-          : groupForScoutingPosition(positions[0]!) === 'DEFENSE'
-            ? 'Defense'
-            : 'Goalie'
-        : 'None';
-
-    await interaction.editReply({
-      embeds: [
-        brandedEmbed()
-          .setTitle('📋 Your Selected Positions')
-          .setDescription(
-            `**Active Positions:** ${posLabel}\n` +
-              `**Category:** ${groupLabel}\n\n` +
-              (positions.length > 0
-                ? `*Click a selected position button to unselect it, or click another position in the same category to add it.*`
-                : `*Click any position button below to select your playing position.*`),
-          ),
-      ],
-    });
     return;
   }
 
@@ -86,6 +58,8 @@ export async function handleWelcomeButton(
       currentGroup = groupForScoutingPosition(currentPositions[0]!);
     }
 
+    const buttonRows = renderRoleSelectButtons(interaction.user.id);
+
     if (currentGroup && currentGroup !== targetGroup) {
       const activeGroupLabel =
         currentGroup === 'FORWARD' ? 'Forward' : currentGroup === 'DEFENSE' ? 'Defense' : 'Goalie';
@@ -97,9 +71,10 @@ export async function handleWelcomeButton(
         embeds: [
           renderError(
             `You currently have **${activeGroupLabel}** position(s) selected (**${currentList}**).\n\n` +
-              `To select a **${targetGroupLabel}** position, please click your active position button(s) to unselect them first.`,
+              `To select a **${targetGroupLabel}** position, please click your active position button(s) below to unselect them first.`,
           ),
         ],
+        components: buttonRows,
       });
       return;
     }
@@ -132,10 +107,11 @@ export async function handleWelcomeButton(
         renderSuccess(
           nextPositions.length > 0 ? 'Position Roles Saved!' : 'Position Roles Cleared!',
           nextPositions.length > 0
-            ? `Your position(s) have been set to **${posLabel}** and your server roles have been updated.`
+            ? `Your position(s) are now set to **${posLabel}** and your server roles have been updated.`
             : 'You have unselected all positions. Your position roles have been removed.',
         ),
       ],
+      components: buttonRows,
     });
     return;
   }

@@ -10,6 +10,40 @@ import type { GuildConfig } from '../generated/prisma/client.js';
 import { brandedEmbed } from './design.js';
 import { customId } from '../utils/custom-id.js';
 
+export function renderRoleSelectButtons(targetId: string = 'panel') {
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', targetId, 'LW'))
+      .setLabel('🏒 Left Wing (LW)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', targetId, 'C'))
+      .setLabel('🏒 Center (C)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', targetId, 'RW'))
+      .setLabel('🏒 Right Wing (RW)')
+      .setStyle(ButtonStyle.Primary),
+  );
+
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', targetId, 'LD'))
+      .setLabel('🛡️ Left Defense (LD)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', targetId, 'RD'))
+      .setLabel('🛡️ Right Defense (RD)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('welcome-group', targetId, 'G'))
+      .setLabel('🥅 Goalie (G)')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return [row1, row2];
+}
+
 export function renderWelcomeEmbed(member: GuildMember, config: GuildConfig) {
   const isScouting = config.welcomeMode === 'SCOUTING';
   const goalsChannelId = config.s55GoalsChannelId ?? '1534700577789841418';
@@ -73,37 +107,7 @@ export function renderWelcomeEmbed(member: GuildMember, config: GuildConfig) {
       },
     );
 
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', member.id, 'LW'))
-      .setLabel('🏒 Left Wing (LW)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', member.id, 'C'))
-      .setLabel('🏒 Center (C)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', member.id, 'RW'))
-      .setLabel('🏒 Right Wing (RW)')
-      .setStyle(ButtonStyle.Primary),
-  );
-
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', member.id, 'LD'))
-      .setLabel('🛡️ Left Defense (LD)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', member.id, 'RD'))
-      .setLabel('🛡️ Right Defense (RD)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', member.id, 'G'))
-      .setLabel('🥅 Goalie (G)')
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: [row1, row2] };
+  return { content: `Welcome <@${member.id}>!`, embeds: [embed], components: renderRoleSelectButtons(member.id) };
 }
 
 export function renderRoleSelectPanel(guild: GuildMember['guild']) {
@@ -122,37 +126,7 @@ export function renderRoleSelectPanel(guild: GuildMember['guild']) {
     embed.setThumbnail(iconUrl);
   }
 
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', 'panel', 'LW'))
-      .setLabel('🏒 Left Wing (LW)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', 'panel', 'C'))
-      .setLabel('🏒 Center (C)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', 'panel', 'RW'))
-      .setLabel('🏒 Right Wing (RW)')
-      .setStyle(ButtonStyle.Primary),
-  );
-
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', 'panel', 'LD'))
-      .setLabel('🛡️ Left Defense (LD)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', 'panel', 'RD'))
-      .setLabel('🛡️ Right Defense (RD)')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(customId('welcome-group', 'panel', 'G'))
-      .setLabel('🥅 Goalie (G)')
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  return { embeds: [embed], components: [row1, row2] };
+  return { embeds: [embed], components: renderRoleSelectButtons('panel') };
 }
 
 export function renderForwardPositionSelect(memberId: string) {
