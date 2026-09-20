@@ -156,17 +156,16 @@ export async function handleSetup(interaction, context) {
         await interaction.deferReply({ ephemeral: true });
         const days = interaction.options.getInteger('days') ?? 7;
         const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        // Get the configured registered/scout role to detect already-registered members
+        const config = await context.config.ensure(interaction.guildId);
+        const registeredRoleId = config.scoutRoleId ?? config.registeredRoleId ?? '1534699662135656518';
         const allMembers = await interaction.guild.members.fetch();
-        const recentNonBots = allMembers.filter((m) => !m.user.bot && (m.joinedTimestamp ?? 0) >= cutoff);
-        // Find members who already have a player record so we skip them
-        const existingPlayerIds = new Set((await context.prisma.player.findMany({
-            where: {
-                guildConfig: { guildId: interaction.guildId },
-                discordUserId: { in: recentNonBots.map((m) => m.id) },
-            },
-            select: { discordUserId: true },
-        })).map((p) => p.discordUserId));
-        const toWelcome = recentNonBots.filter((m) => !existingPlayerIds.has(m.id));
+        // Only target non-bot members who:
+        // 1. Joined within the specified window
+        // 2. Do NOT already have the registered/scout role (i.e. haven't completed signup)
+        const toWelcome = allMembers.filter((m) => !m.user.bot &&
+            (m.joinedTimestamp ?? 0) >= cutoff &&
+            !m.roles.cache.has(registeredRoleId));
         let sent = 0;
         for (const member of toWelcome.values()) {
             await context.welcome.handleMemberAdd(member);
@@ -176,7 +175,7 @@ export async function handleSetup(interaction, context) {
         }
         await interaction.editReply({
             embeds: [
-                renderSuccess('Welcome backfill complete', `Sent welcome messages to **${sent}** member${sent !== 1 ? 's' : ''} who joined in the last **${days}** day${days !== 1 ? 's' : ''} and hadn't registered yet.${toWelcome.size === 0 ? '\n\nNo unregistered members found in that window.' : ''}`),
+                renderSuccess('Welcome backfill complete', `Sent welcome messages to **${sent}** member${sent !== 1 ? 's' : ''} who joined in the last **${days}** day${days !== 1 ? 's' : ''} and hadn't completed registration yet.${sent === 0 ? '\n\nNo unregistered members found in that window.' : ''}`),
             ],
         });
         return;
