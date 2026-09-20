@@ -228,6 +228,18 @@ export const commandDefinitions = [
             .setDescription('LG rules & info channel (default: 1543414198741237911)')
             .addChannelTypes(ChannelType.GuildText),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('backfill')
+        .setDescription('Re-send welcome messages for members who joined recently but were missed')
+        .addIntegerOption((option) =>
+          option
+            .setName('days')
+            .setDescription('How many days back to look (default: 7)')
+            .setMinValue(1)
+            .setMaxValue(30),
+        ),
     ),
   new SlashCommandBuilder()
     .setName('scout')

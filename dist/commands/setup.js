@@ -152,6 +152,35 @@ export async function handleSetup(interaction, context) {
             tcReminderPolicy: interaction.options.getString('tc_policy', true),
         });
     }
+    else if (subcommand === 'backfill') {
+        await interaction.deferReply({ ephemeral: true });
+        const days = interaction.options.getInteger('days') ?? 7;
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        const allMembers = await interaction.guild.members.fetch();
+        const recentNonBots = allMembers.filter((m) => !m.user.bot && (m.joinedTimestamp ?? 0) >= cutoff);
+        // Find members who already have a player record so we skip them
+        const existingPlayerIds = new Set((await context.prisma.player.findMany({
+            where: {
+                guildConfig: { guildId: interaction.guildId },
+                discordUserId: { in: recentNonBots.map((m) => m.id) },
+            },
+            select: { discordUserId: true },
+        })).map((p) => p.discordUserId));
+        const toWelcome = recentNonBots.filter((m) => !existingPlayerIds.has(m.id));
+        let sent = 0;
+        for (const member of toWelcome.values()) {
+            await context.welcome.handleMemberAdd(member);
+            sent++;
+            // Small delay to avoid hitting Discord rate limits
+            await new Promise((r) => setTimeout(r, 500));
+        }
+        await interaction.editReply({
+            embeds: [
+                renderSuccess('Welcome backfill complete', `Sent welcome messages to **${sent}** member${sent !== 1 ? 's' : ''} who joined in the last **${days}** day${days !== 1 ? 's' : ''} and hadn't registered yet.${toWelcome.size === 0 ? '\n\nNo unregistered members found in that window.' : ''}`),
+            ],
+        });
+        return;
+    }
     else if (subcommand === 'welcome') {
         const mode = interaction.options.getString('mode');
         const welcomeChannelId = interaction.options.getChannel('welcome_channel')?.id;
