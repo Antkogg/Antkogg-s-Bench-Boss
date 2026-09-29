@@ -1,5 +1,10 @@
 import type { Interaction } from 'discord.js';
-import { handleBoard, handlePlayerSearch } from '../commands/management.js';
+import {
+  handleBoard,
+  handlePlayerSearch,
+  handleSetPosition,
+  handleSetPositions,
+} from '../commands/management.js';
 import { handleHelp } from '../commands/help.js';
 import { handleProfile } from '../commands/profile.js';
 import { handleScout, handleScoutingBrowser } from '../commands/scouting.js';
@@ -74,6 +79,10 @@ export async function routeInteraction(
       else if (interaction.commandName === 'week') await handleWeek(interaction, context);
       else if (interaction.commandName === 'add-game') await handleAddGame(interaction, context);
       else if (interaction.commandName === 'set-code') await handleSetCode(interaction, context);
+      else if (interaction.commandName === 'set-position')
+        await handleSetPosition(interaction, context);
+      else if (interaction.commandName === 'set-positions')
+        await handleSetPositions(interaction, context);
       else if (interaction.commandName === 'delete-game') await handleDeleteGame(interaction, context);
       else if (interaction.commandName === 'games') await handleSchedule(interaction, context);
       else if (interaction.commandName === 'schedule') await handleSchedule(interaction, context);

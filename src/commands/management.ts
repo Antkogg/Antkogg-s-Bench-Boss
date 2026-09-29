@@ -6,10 +6,10 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { capacity } from '../domain/scouting.js';
-import { brandedEmbed, discordTimestamp } from '../renderers/design.js';
+import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import type { BotContext } from './context.js';
-import type { TcStatus, TeamStatus } from '../generated/prisma/client.js';
+import type { SignupPosition, TcStatus, TeamStatus } from '../generated/prisma/client.js';
 import { requireManagement } from './authorization.js';
 
 export async function handlePlayerSearch(
@@ -150,5 +150,148 @@ export async function handleBoard(
           ),
       ),
     ],
+  });
+}
+
+export async function handleSetPosition(
+  interaction: ChatInputCommandInteraction,
+  context: BotContext,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild)
+    throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+  await requireManagement(interaction, context);
+
+  const targetUser = interaction.options.getUser('player', true);
+  const position = interaction.options.getString('position', true) as SignupPosition;
+
+  await context.players.byDiscordId(
+    interaction.guildId,
+    targetUser.id,
+    targetUser.displayName ?? targetUser.username,
+    targetUser.displayAvatarURL(),
+  );
+
+  const updated = await context.players.updatePositions(
+    interaction.guildId,
+    targetUser.id,
+    [position],
+    targetUser.displayName ?? targetUser.username,
+    targetUser.displayAvatarURL(),
+  );
+
+  const groupLabel =
+    updated.positionGroup === 'FORWARD'
+      ? 'Forwards'
+      : updated.positionGroup === 'DEFENSE'
+        ? 'Defense'
+        : 'Goalies';
+
+  await interaction.reply({
+    ephemeral: true,
+    embeds: [
+      renderSuccess(
+        'Position Set',
+        `Successfully set position for <@${targetUser.id}> to **${position}** (${groupLabel}).\n` +
+          `They will now appear under **${groupLabel}** when they submit availability and in lineup building.`,
+      ),
+    ],
+  });
+}
+
+export async function handleSetPositions(
+  interaction: ChatInputCommandInteraction,
+  context: BotContext,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild)
+    throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+  await requireManagement(interaction, context);
+
+  const rawRoster = interaction.options.getString('roster', true);
+  const lines = rawRoster.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+
+  const results: string[] = [];
+  const errors: string[] = [];
+
+  const validPositions = new Set<string>(['LW', 'C', 'RW', 'LD', 'RD', 'G']);
+
+  for (const line of lines) {
+    const mentionMatch = line.match(/<@!?(\d+)>/);
+    let discordUserId: string | null = mentionMatch ? mentionMatch[1]! : null;
+
+    const tokens = line.split(/[:\s,]+/).map((t) => t.trim().toUpperCase());
+    const foundPos = tokens.find((t) => validPositions.has(t)) as SignupPosition | undefined;
+
+    if (!foundPos) {
+      errors.push(`Could not find a valid position in: \`${line}\``);
+      continue;
+    }
+
+    if (!discordUserId) {
+      const idToken = tokens.find((t) => /^\d{17,20}$/.test(t));
+      if (idToken) {
+        discordUserId = idToken;
+      }
+    }
+
+    if (discordUserId) {
+      try {
+        let displayName = discordUserId;
+        try {
+          const member = await interaction.guild.members.fetch(discordUserId);
+          displayName = member.displayName || member.user.username;
+        } catch {
+          // ignore fetch error
+        }
+        await context.players.updatePositions(
+          interaction.guildId,
+          discordUserId,
+          [foundPos],
+          displayName,
+        );
+        results.push(`<@${discordUserId}> → **${foundPos}**`);
+      } catch (err) {
+        errors.push(`Failed for <@${discordUserId}>: ${(err as Error).message}`);
+      }
+    } else {
+      const searchTerms = tokens.filter((t) => t !== foundPos && !validPositions.has(t));
+      const query = searchTerms.join(' ').trim();
+      if (!query) {
+        errors.push(`No player identifier in: \`${line}\``);
+        continue;
+      }
+      const matches = await context.players.search(interaction.guildId, query);
+      if (matches.length > 0) {
+        const p = matches[0]!;
+        await context.players.updatePositions(
+          interaction.guildId,
+          p.discordUserId,
+          [foundPos],
+          p.discordDisplayName,
+        );
+        results.push(`\`${p.eaTag}\` (<@${p.discordUserId}>) → **${foundPos}**`);
+      } else {
+        errors.push(`Player not found for: \`${query}\``);
+      }
+    }
+  }
+
+  const embed = brandedEmbed()
+    .setTitle('ROSTER POSITIONS UPDATED')
+    .setDescription(
+      results.length
+        ? `Successfully updated positions for **${results.length}** player(s):\n\n${results.join('\n')}`
+        : 'No players could be updated. Check formatting.',
+    );
+
+  if (errors.length) {
+    embed.addFields({
+      name: '⚠️ Warnings / Skipped',
+      value: errors.slice(0, 10).join('\n'),
+    });
+  }
+
+  await interaction.reply({
+    ephemeral: true,
+    embeds: [embed],
   });
 }

@@ -311,6 +311,22 @@ export const commandDefinitions = [
         .setName('delete-game')
         .setDescription('Delete a game from the schedule')
         .addStringOption((option) => option.setName('game').setDescription('Game number (1, 2...) or ID to delete').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('set-position')
+        .setDescription('Set a player position (LW, C, RW, LD, RD, G) for games & availability')
+        .addUserOption((option) => option.setName('player').setDescription('Select the team player').setRequired(true))
+        .addStringOption((option) => option
+        .setName('position')
+        .setDescription('Position to assign')
+        .setRequired(true)
+        .addChoices({ name: 'Left Wing (LW)', value: 'LW' }, { name: 'Center (C)', value: 'C' }, { name: 'Right Wing (RW)', value: 'RW' }, { name: 'Left Defense (LD)', value: 'LD' }, { name: 'Right Defense (RD)', value: 'RD' }, { name: 'Goalie (G)', value: 'G' })),
+    new SlashCommandBuilder()
+        .setName('set-positions')
+        .setDescription('Set multiple player positions in bulk by pasting a list')
+        .addStringOption((option) => option
+        .setName('roster')
+        .setDescription('Paste list: @Player C, @Player2 LW, or GamerTag: RD (one per line)')
+        .setRequired(true)),
     new SlashCommandBuilder().setName('games').setDescription('View scheduled games and lineup cards for this week'),
     new SlashCommandBuilder().setName('schedule').setDescription('View the current LG schedule'),
     new SlashCommandBuilder().setName('game').setDescription('View your nearest confirmed game'),
