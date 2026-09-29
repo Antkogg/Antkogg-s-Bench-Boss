@@ -377,7 +377,9 @@ export function renderIndividualGamePost(
       text: `S55 Boston University • Game ${gameNumber ?? 1} of 9`,
     });
 
-  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
+
+  const playerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-avail', game.id, 'available'))
       .setLabel('🟢 Available')
@@ -386,6 +388,17 @@ export function renderIndividualGamePost(
       .setCustomId(customId('game-avail', game.id, 'unavailable'))
       .setLabel('🔴 Out')
       .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(customId('game-day-avail', game.id, 'available'))
+      .setLabel(`🟢 All ${dayName}`)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+      .setLabel(`🔴 No ${dayName}`)
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  const managerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))
       .setLabel('Set Code')
@@ -398,6 +411,6 @@ export function renderIndividualGamePost(
 
   return {
     embeds: [embed],
-    components: [buttonRow],
+    components: [playerRow, managerRow],
   };
 }

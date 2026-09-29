@@ -42,6 +42,7 @@ import {
 } from '../interactions/weekly-availability.js';
 import {
   handleGameAvailButton,
+  handleGameDayAvailButton,
   handleGameButton,
   handleGameCodeModal,
   handleGameStatusSelect,
@@ -130,6 +131,8 @@ export async function routeInteraction(
         await handlePostWeekInteraction(interaction, context, parsed);
       else if (parsed.action === 'game-avail')
         await handleGameAvailButton(interaction, context, parsed);
+      else if (parsed.action === 'game-day-avail')
+        await handleGameDayAvailButton(interaction, context, parsed);
       else if (parsed.action === 'player-game')
         await handlePlayerGameButton(interaction, context, parsed);
       else await handleButton(interaction, context, parsed);

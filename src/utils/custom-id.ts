@@ -47,6 +47,7 @@ const actionSchema = z.enum([
   'post-week-btn',
   'post-week-select',
   'game-avail',
+  'game-day-avail',
 ]);
 
 export type ComponentAction = z.infer<typeof actionSchema>;
