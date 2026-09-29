@@ -167,6 +167,7 @@ export async function handleSetPosition(
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
   await requireManagement(interaction, context);
+  await interaction.deferReply({ ephemeral: true });
 
   const targetUser = interaction.options.getUser('player', true);
   const position = interaction.options.getString('position', true) as SignupPosition;
@@ -193,8 +194,7 @@ export async function handleSetPosition(
         ? 'Defense'
         : 'Goalies';
 
-  await interaction.reply({
-    ephemeral: true,
+  await interaction.editReply({
     embeds: [
       renderSuccess(
         'Position Set',
@@ -209,20 +209,32 @@ export async function getTeamMembersWithRole(
   guild: Guild,
   configRole?: string | null,
 ): Promise<{ role: Role; members: GuildMember[] }> {
-  await guild.roles.fetch();
-  const role =
+  let role =
     guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
     guild.roles.cache.get(configRole ?? '') ??
     guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
 
   if (!role) {
+    await guild.roles.fetch().catch(() => null);
+    role =
+      guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+      guild.roles.cache.get(configRole ?? '') ??
+      guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+  }
+
+  if (!role) {
     throw new AppError('NOT_FOUND', 'Could not find the "S55 BU" team role in this server.');
   }
 
-  const allMembers = await guild.members.fetch();
-  const members = Array.from(
-    allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values(),
-  );
+  let members = Array.from(role.members.filter((m) => !m.user.bot).values());
+  if (!members.length) {
+    const fetched = await guild.members.fetch().catch(() => null);
+    if (fetched) {
+      members = Array.from(
+        fetched.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
+      );
+    }
+  }
 
   return { role, members };
 }
@@ -311,6 +323,7 @@ export async function handleSetPositions(
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
   await requireManagement(interaction, context);
+  await interaction.deferReply({ ephemeral: true });
 
   const rawRoster = interaction.options.getString('roster')?.trim();
   if (!rawRoster) {
@@ -320,22 +333,20 @@ export async function handleSetPositions(
       throw new AppError('NOT_FOUND', `No members found with role <@&${role.id}>.`);
     }
 
-    const playerRows: Array<{ member: GuildMember; player: Player }> = [];
-    for (const member of members) {
-      const player = await context.players.byDiscordId(
-        interaction.guildId,
-        member.id,
-        member.displayName || member.user.username,
-        member.user.displayAvatarURL(),
-      );
-      playerRows.push({ member, player });
-    }
+    const playerRows = await Promise.all(
+      members.map(async (member) => {
+        const player = await context.players.byDiscordId(
+          interaction.guildId!,
+          member.id,
+          member.displayName || member.user.username,
+          member.user.displayAvatarURL(),
+        );
+        return { member, player };
+      }),
+    );
 
     const panel = renderRosterPositionsPanel(role.id, playerRows);
-    await interaction.reply({
-      ephemeral: true,
-      ...panel,
-    });
+    await interaction.editReply(panel);
     return;
   }
 
@@ -422,8 +433,7 @@ export async function handleSetPositions(
     });
   }
 
-  await interaction.reply({
-    ephemeral: true,
+  await interaction.editReply({
     embeds: [embed],
   });
 }

@@ -104,6 +104,7 @@ export async function handleSetPosition(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
     await requireManagement(interaction, context);
+    await interaction.deferReply({ ephemeral: true });
     const targetUser = interaction.options.getUser('player', true);
     const position = interaction.options.getString('position', true);
     await context.players.byDiscordId(interaction.guildId, targetUser.id, targetUser.displayName ?? targetUser.username, targetUser.displayAvatarURL());
@@ -113,8 +114,7 @@ export async function handleSetPosition(interaction, context) {
         : updated.positionGroup === 'DEFENSE'
             ? 'Defense'
             : 'Goalies';
-    await interaction.reply({
-        ephemeral: true,
+    await interaction.editReply({
         embeds: [
             renderSuccess('Position Set', `Successfully set position for <@${targetUser.id}> to **${position}** (${groupLabel}).\n` +
                 `They will now appear under **${groupLabel}** when they submit availability and in lineup building.`),
@@ -122,15 +122,26 @@ export async function handleSetPosition(interaction, context) {
     });
 }
 export async function getTeamMembersWithRole(guild, configRole) {
-    await guild.roles.fetch();
-    const role = guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+    let role = guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
         guild.roles.cache.get(configRole ?? '') ??
         guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
     if (!role) {
+        await guild.roles.fetch().catch(() => null);
+        role =
+            guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+                guild.roles.cache.get(configRole ?? '') ??
+                guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+    }
+    if (!role) {
         throw new AppError('NOT_FOUND', 'Could not find the "S55 BU" team role in this server.');
     }
-    const allMembers = await guild.members.fetch();
-    const members = Array.from(allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+    let members = Array.from(role.members.filter((m) => !m.user.bot).values());
+    if (!members.length) {
+        const fetched = await guild.members.fetch().catch(() => null);
+        if (fetched) {
+            members = Array.from(fetched.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+        }
+    }
     return { role, members };
 }
 export function renderRosterPositionsPanel(roleId, playerRows, selectedMemberId) {
@@ -184,6 +195,7 @@ export async function handleSetPositions(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
     await requireManagement(interaction, context);
+    await interaction.deferReply({ ephemeral: true });
     const rawRoster = interaction.options.getString('roster')?.trim();
     if (!rawRoster) {
         const config = await context.config.ensure(interaction.guildId);
@@ -191,16 +203,12 @@ export async function handleSetPositions(interaction, context) {
         if (!members.length) {
             throw new AppError('NOT_FOUND', `No members found with role <@&${role.id}>.`);
         }
-        const playerRows = [];
-        for (const member of members) {
+        const playerRows = await Promise.all(members.map(async (member) => {
             const player = await context.players.byDiscordId(interaction.guildId, member.id, member.displayName || member.user.username, member.user.displayAvatarURL());
-            playerRows.push({ member, player });
-        }
+            return { member, player };
+        }));
         const panel = renderRosterPositionsPanel(role.id, playerRows);
-        await interaction.reply({
-            ephemeral: true,
-            ...panel,
-        });
+        await interaction.editReply(panel);
         return;
     }
     const lines = rawRoster.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
@@ -268,8 +276,7 @@ export async function handleSetPositions(interaction, context) {
             value: errors.slice(0, 10).join('\n'),
         });
     }
-    await interaction.reply({
-        ephemeral: true,
+    await interaction.editReply({
         embeds: [embed],
     });
 }
