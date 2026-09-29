@@ -195,16 +195,16 @@ export function renderGame(game, management, playerId) {
 export function renderIndividualGamePost(game, gameNumber) {
     const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
     const homeAwaySymbol = game.homeAway === 'AWAY' ? '@' : 'vs';
-    const matchupType = game.homeAway === 'AWAY' ? 'Away Game (@ Opponent)' : 'Home Game (vs Opponent)';
+    const locationTag = game.homeAway === 'AWAY' ? '✈️ **Away**' : '🏠 **Home**';
     const opponentName = game.opponentNameSnapshot ?? 'Opponent';
     const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
     const lineupMap = new Map();
     for (const pos of positions) {
         const assignment = game.lineup?.find((l) => l.position === pos);
-        lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '*Open*');
+        lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '`Open`');
     }
-    const forwardLine = `\`LW\` ${lineupMap.get('LW')}  •  \`C\` ${lineupMap.get('C')}  •  \`RW\` ${lineupMap.get('RW')}`;
-    const defenseLine = `\`LD\` ${lineupMap.get('LD')}  •  \`RD\` ${lineupMap.get('RD')}  •  \`G\` ${lineupMap.get('G')}`;
+    const forwardLine = `**LW** ${lineupMap.get('LW')}  •  **C** ${lineupMap.get('C')}  •  **RW** ${lineupMap.get('RW')}`;
+    const defenseLine = `**LD** ${lineupMap.get('LD')}  •  **RD** ${lineupMap.get('RD')}  •  **G** ${lineupMap.get('G')}`;
     const availablePlayers = (game.responses ?? [])
         .filter((r) => r.status === 'AVAILABLE')
         .map((r) => {
@@ -219,9 +219,9 @@ export function renderIndividualGamePost(game, gameNumber) {
         ? `**Server:** \`${game.gameServer ?? 'TBD'}\`  ┃  **Code:** \`${game.gameCode ?? 'TBD'}\``
         : '`TBD`';
     const embed = brandedEmbed()
-        .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol.toUpperCase()} ${opponentName.toUpperCase()}`)
+        .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
         .setDescription(`⏰ **<t:${timeUnix}:t>** • 📅 **<t:${timeUnix}:D>** (<t:${timeUnix}:R>)\n` +
-        `🏟️ **${matchupType}**`)
+        `${locationTag}`)
         .addFields({
         name: '🎮 Server & Code',
         value: serverCodeValue,

@@ -292,18 +292,18 @@ export function renderIndividualGamePost(
 ) {
   const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
   const homeAwaySymbol = game.homeAway === 'AWAY' ? '@' : 'vs';
-  const matchupType = game.homeAway === 'AWAY' ? 'Away Game (@ Opponent)' : 'Home Game (vs Opponent)';
+  const locationTag = game.homeAway === 'AWAY' ? '✈️ **Away**' : '🏠 **Home**';
   const opponentName = game.opponentNameSnapshot ?? 'Opponent';
 
   const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const;
   const lineupMap = new Map<string, string>();
   for (const pos of positions) {
     const assignment = game.lineup?.find((l) => l.position === pos);
-    lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '*Open*');
+    lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '`Open`');
   }
 
-  const forwardLine = `\`LW\` ${lineupMap.get('LW')}  •  \`C\` ${lineupMap.get('C')}  •  \`RW\` ${lineupMap.get('RW')}`;
-  const defenseLine = `\`LD\` ${lineupMap.get('LD')}  •  \`RD\` ${lineupMap.get('RD')}  •  \`G\` ${lineupMap.get('G')}`;
+  const forwardLine = `**LW** ${lineupMap.get('LW')}  •  **C** ${lineupMap.get('C')}  •  **RW** ${lineupMap.get('RW')}`;
+  const defenseLine = `**LD** ${lineupMap.get('LD')}  •  **RD** ${lineupMap.get('RD')}  •  **G** ${lineupMap.get('G')}`;
 
   const availablePlayers = (game.responses ?? [])
     .filter((r) => r.status === 'AVAILABLE')
@@ -323,10 +323,10 @@ export function renderIndividualGamePost(
       : '`TBD`';
 
   const embed = brandedEmbed()
-    .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol.toUpperCase()} ${opponentName.toUpperCase()}`)
+    .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
     .setDescription(
       `⏰ **<t:${timeUnix}:t>** • 📅 **<t:${timeUnix}:D>** (<t:${timeUnix}:R>)\n` +
-      `🏟️ **${matchupType}**`
+      `${locationTag}`
     )
     .addFields(
       {
