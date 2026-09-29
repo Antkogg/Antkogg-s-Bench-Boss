@@ -2,6 +2,8 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, 
 import { capacity } from '../domain/scouting.js';
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
+import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
+import { customId } from '../utils/custom-id.js';
 import { requireManagement } from './authorization.js';
 export async function handlePlayerSearch(interaction, context) {
     await requireManagement(interaction, context);
@@ -119,11 +121,88 @@ export async function handleSetPosition(interaction, context) {
         ],
     });
 }
+export async function getTeamMembersWithRole(guild, configRole) {
+    await guild.roles.fetch();
+    const role = guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+        guild.roles.cache.get(configRole ?? '') ??
+        guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+    if (!role) {
+        throw new AppError('NOT_FOUND', 'Could not find the "S55 BU" team role in this server.');
+    }
+    const allMembers = await guild.members.fetch();
+    const members = Array.from(allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+    return { role, members };
+}
+export function renderRosterPositionsPanel(roleId, playerRows, selectedMemberId) {
+    const unsetCount = playerRows.filter((p) => p.player.signupPositions.length === 0).length;
+    const embed = brandedEmbed()
+        .setTitle(`S55 BU ROSTER POSITIONS (${playerRows.length} Players)`)
+        .setDescription(`Role: <@&${roleId}> • **${playerRows.length - unsetCount}/${playerRows.length}** positions configured.\n` +
+        `Choose a player from the dropdown below to set their position with one click!\n` +
+        `*(Positions determine whether players show as Forwards, Defense, or Goalies for availability)*`)
+        .addFields({
+        name: '👥 ROSTER & POSITIONS',
+        value: playerRows
+            .map(({ member, player }, i) => `${i + 1}. <@${member.id}> • **${player.signupPositions.join('/') || '⚠️ NOT SET'}**`)
+            .join('\n')
+            .slice(0, 1024),
+    }, {
+        name: '📋 BULK COPY TEMPLATE',
+        value: '```\n' +
+            playerRows
+                .map(({ member, player }) => `<@${member.id}> ${player.signupPositions[0] ?? 'C'}`)
+                .join('\n')
+                .slice(0, 1000) +
+            '\n```\n*You can also copy this list, change the letters, and run `/set-positions roster:`.*',
+    });
+    const selectMenu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+        .setCustomId(customId('roster-player-select', roleId))
+        .setPlaceholder(selectedMemberId
+        ? `Selected: ${playerRows.find((p) => p.member.id === selectedMemberId)?.member.displayName ?? 'Player'}`
+        : 'Choose a player to assign a position...')
+        .addOptions(playerRows.slice(0, 25).map(({ member, player }) => ({
+        label: (member.displayName || member.user.username).slice(0, 100),
+        value: member.id,
+        description: `Current: ${player.signupPositions.join('/') || 'Not set'}`,
+        default: member.id === selectedMemberId,
+    }))));
+    const components = [selectMenu];
+    if (selectedMemberId) {
+        const buttonRow = new ActionRowBuilder().addComponents(['LW', 'C', 'RW', 'LD', 'RD', 'G'].map((pos) => new ButtonBuilder()
+            .setCustomId(customId('roster-set-pos', selectedMemberId, pos))
+            .setLabel(pos)
+            .setStyle(pos === 'C' || pos === 'LW' || pos === 'RW'
+            ? ButtonStyle.Primary
+            : pos === 'G'
+                ? ButtonStyle.Success
+                : ButtonStyle.Secondary)));
+        components.push(buttonRow);
+    }
+    return { embeds: [embed], components };
+}
 export async function handleSetPositions(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
     await requireManagement(interaction, context);
-    const rawRoster = interaction.options.getString('roster', true);
+    const rawRoster = interaction.options.getString('roster')?.trim();
+    if (!rawRoster) {
+        const config = await context.config.ensure(interaction.guildId);
+        const { role, members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId);
+        if (!members.length) {
+            throw new AppError('NOT_FOUND', `No members found with role <@&${role.id}>.`);
+        }
+        const playerRows = [];
+        for (const member of members) {
+            const player = await context.players.byDiscordId(interaction.guildId, member.id, member.displayName || member.user.username, member.user.displayAvatarURL());
+            playerRows.push({ member, player });
+        }
+        const panel = renderRosterPositionsPanel(role.id, playerRows);
+        await interaction.reply({
+            ephemeral: true,
+            ...panel,
+        });
+        return;
+    }
     const lines = rawRoster.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
     const results = [];
     const errors = [];
@@ -193,5 +272,46 @@ export async function handleSetPositions(interaction, context) {
         ephemeral: true,
         embeds: [embed],
     });
+}
+export async function handleRosterPlayerSelect(interaction, context, parsed) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+    await requireManagement(interaction, context);
+    const roleId = parsed.entityId;
+    const selectedMemberId = interaction.values[0];
+    const config = await context.config.ensure(interaction.guildId);
+    const { members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId);
+    const playerRows = [];
+    for (const member of members) {
+        const player = await context.players.byDiscordId(interaction.guildId, member.id, member.displayName || member.user.username, member.user.displayAvatarURL());
+        playerRows.push({ member, player });
+    }
+    const panel = renderRosterPositionsPanel(roleId, playerRows, selectedMemberId);
+    await interaction.update(panel);
+}
+export async function handleRosterSetPosButton(interaction, context, parsed) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+    await requireManagement(interaction, context);
+    const targetUserId = parsed.entityId;
+    const position = parsed.value;
+    let displayName = targetUserId;
+    try {
+        const member = await interaction.guild.members.fetch(targetUserId);
+        displayName = member.displayName || member.user.username;
+    }
+    catch {
+        // ignore
+    }
+    await context.players.updatePositions(interaction.guildId, targetUserId, [position], displayName);
+    const config = await context.config.ensure(interaction.guildId);
+    const { role, members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId);
+    const playerRows = [];
+    for (const member of members) {
+        const player = await context.players.byDiscordId(interaction.guildId, member.id, member.displayName || member.user.username, member.user.displayAvatarURL());
+        playerRows.push({ member, player });
+    }
+    const panel = renderRosterPositionsPanel(role.id, playerRows, targetUserId);
+    await interaction.update(panel);
 }
 //# sourceMappingURL=management.js.map

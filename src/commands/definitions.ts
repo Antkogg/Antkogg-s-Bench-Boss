@@ -581,12 +581,12 @@ export const commandDefinitions = [
     ),
   new SlashCommandBuilder()
     .setName('set-positions')
-    .setDescription('Set multiple player positions in bulk by pasting a list')
+    .setDescription('View and set positions for all S55 BU team players')
     .addStringOption((option) =>
       option
         .setName('roster')
-        .setDescription('Paste list: @Player C, @Player2 LW, or GamerTag: RD (one per line)')
-        .setRequired(true),
+        .setDescription('Optional: paste list like @Player C (omit to pull all S55 BU players)')
+        .setRequired(false),
     ),
   new SlashCommandBuilder().setName('games').setDescription('View scheduled games and lineup cards for this week'),
   new SlashCommandBuilder().setName('schedule').setDescription('View the current LG schedule'),

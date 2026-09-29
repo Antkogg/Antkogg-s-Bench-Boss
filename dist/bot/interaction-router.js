@@ -1,4 +1,4 @@
-import { handleBoard, handlePlayerSearch, handleSetPosition, handleSetPositions, } from '../commands/management.js';
+import { handleBoard, handlePlayerSearch, handleRosterPlayerSelect, handleRosterSetPosButton, handleSetPosition, handleSetPositions, } from '../commands/management.js';
 import { handleHelp } from '../commands/help.js';
 import { handleProfile } from '../commands/profile.js';
 import { handleScout, handleScoutingBrowser } from '../commands/scouting.js';
@@ -89,6 +89,8 @@ export async function routeInteraction(interaction, context) {
                 await handleLineupButton(interaction, context, parsed);
             else if (parsed.action === 'game-action')
                 await handleGameButton(interaction, context, parsed);
+            else if (parsed.action === 'roster-set-pos')
+                await handleRosterSetPosButton(interaction, context, parsed);
             else if (parsed.action === 'player-game')
                 await handlePlayerGameButton(interaction, context, parsed);
             else
@@ -97,7 +99,9 @@ export async function routeInteraction(interaction, context) {
         }
         if (interaction.isStringSelectMenu()) {
             const parsed = parseCustomId(interaction.customId);
-            if (parsed.action === 'welcome-positions')
+            if (parsed.action === 'roster-player-select')
+                await handleRosterPlayerSelect(interaction, context, parsed);
+            else if (parsed.action === 'welcome-positions')
                 await handleWelcomeSelectMenu(interaction, context, parsed);
             else if (parsed.action === 'weekly-availability-select')
                 await handleWeeklyAvailabilitySelect(interaction, context, parsed);

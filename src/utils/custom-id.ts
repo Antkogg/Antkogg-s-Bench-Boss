@@ -37,6 +37,8 @@ const actionSchema = z.enum([
   'welcome-group',
   'welcome-positions',
   'welcome-mode',
+  'roster-player-select',
+  'roster-set-pos',
 ]);
 
 export type ComponentAction = z.infer<typeof actionSchema>;
