@@ -439,14 +439,22 @@ export async function handleGameCodeModal(interaction, context, parsed) {
         }
     await context.schedule.markGameInfoNotified(delivered);
     const week = await context.schedule.getWeek(game.weekId);
-    if (week)
+    if (interaction.message) {
+        const activeGames = week?.games.filter((g) => g.status !== 'CANCELLED') ?? [];
+        const gameIndex = activeGames.findIndex((g) => g.id === game.id);
+        const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
+        await interaction.message.edit(renderIndividualGamePost(game, gameNumber)).catch(() => null);
+    }
+    else if (week) {
         await refreshWeekPost(interaction, week);
+    }
     await interaction.reply({
         ephemeral: true,
         embeds: [
-            renderSuccess('Game details saved', config.notifyConfirmedGameInfo
-                ? 'Confirmed-player notifications were queued; temporary failures will retry automatically.'
-                : 'Confirmed players can now use `/game`.'),
+            renderSuccess('Server & Code Saved', `**Server:** ${game.gameServer ?? 'TBD'}\n**Code:** ${game.gameCode ?? 'TBD'}\n\n` +
+                (config.notifyConfirmedGameInfo
+                    ? 'Confirmed players were notified via DM.'
+                    : 'Confirmed players can now use `/game`.')),
         ],
     });
 }

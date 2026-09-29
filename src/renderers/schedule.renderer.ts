@@ -291,24 +291,25 @@ export function renderIndividualGamePost(
   gameNumber?: number,
 ) {
   const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
-  const homeAwayText = game.homeAway === 'AWAY' ? 'Away @' : 'Home vs';
-  const prefix = gameNumber ? `GAME ${gameNumber}: ` : '';
+  const homeAwaySymbol = game.homeAway === 'AWAY' ? '@' : 'vs';
+  const matchupType = game.homeAway === 'AWAY' ? 'Away Game (@ Opponent)' : 'Home Game (vs Opponent)';
+  const opponentName = game.opponentNameSnapshot ?? 'Opponent';
 
   const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const;
-  const lineupParts = positions.map((pos) => {
+  const lineupMap = new Map<string, string>();
+  for (const pos of positions) {
     const assignment = game.lineup?.find((l) => l.position === pos);
-    return assignment
-      ? `**${pos}:** <@${assignment.player.discordUserId}>`
-      : `**${pos}:** *Open*`;
-  });
-  const forwards = lineupParts.slice(0, 3).join(' | ');
-  const defenseGoalie = lineupParts.slice(3).join(' | ');
+    lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '*Open*');
+  }
+
+  const forwardLine = `\`LW\` ${lineupMap.get('LW')}  •  \`C\` ${lineupMap.get('C')}  •  \`RW\` ${lineupMap.get('RW')}`;
+  const defenseLine = `\`LD\` ${lineupMap.get('LD')}  •  \`RD\` ${lineupMap.get('RD')}  •  \`G\` ${lineupMap.get('G')}`;
 
   const availablePlayers = (game.responses ?? [])
     .filter((r) => r.status === 'AVAILABLE')
     .map((r) => {
       const p = r.submission.player;
-      const pos = p.signupPositions?.length ? ` (${p.signupPositions.join('/')})` : '';
+      const pos = p.signupPositions?.length ? ` *(${p.signupPositions.join('/')})*` : '';
       return `<@${p.discordUserId}>${pos}`;
     });
 
@@ -316,21 +317,42 @@ export function renderIndividualGamePost(
     .filter((r) => r.status === 'UNAVAILABLE')
     .map((r) => `<@${r.submission.player.discordUserId}>`);
 
-  const serverCode =
+  const serverCodeValue =
     game.gameServer || game.gameCode
-      ? `🎮 **Server:** \`${game.gameServer ?? 'TBD'}\` • **Code:** \`${game.gameCode ?? 'TBD'}\``
-      : '🎮 **Server & Code:** *Not set yet (Management: click button below on game day)*';
+      ? `**Server:** \`${game.gameServer ?? 'TBD'}\`  ┃  **Code:** \`${game.gameCode ?? 'TBD'}\``
+      : '`TBD`';
 
   const embed = brandedEmbed()
-    .setTitle(`🏒 ${prefix}${homeAwayText.toUpperCase()} ${game.opponentNameSnapshot?.toUpperCase() ?? 'OPPONENT'}`)
+    .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol.toUpperCase()} ${opponentName.toUpperCase()}`)
     .setDescription(
-      `🆔 **Game ID:** \`${game.id}\` *(Use with \`/set-code\` or click button below)*\n` +
-      `⏰ **Time:** <t:${timeUnix}:F> (<t:${timeUnix}:R>)\n` +
-      `${serverCode}\n\n` +
-      `📋 **Lineup Starters:**\n${forwards}\n${defenseGoalie}\n\n` +
-      `🟢 **Available (${availablePlayers.length}):** ${availablePlayers.length ? availablePlayers.join(', ') : '*None yet*'}\n` +
-      `🔴 **Out (${outPlayers.length}):** ${outPlayers.length ? outPlayers.join(', ') : '*None*'}`,
-    );
+      `⏰ **<t:${timeUnix}:t>** • 📅 **<t:${timeUnix}:D>** (<t:${timeUnix}:R>)\n` +
+      `🏟️ **${matchupType}**`
+    )
+    .addFields(
+      {
+        name: '🎮 Server & Code',
+        value: serverCodeValue,
+        inline: false,
+      },
+      {
+        name: '📋 Starting Lineup',
+        value: `${forwardLine}\n${defenseLine}`,
+        inline: false,
+      },
+      {
+        name: `🟢 Available (${availablePlayers.length})`,
+        value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None yet*',
+        inline: true,
+      },
+      {
+        name: `🔴 Out (${outPlayers.length})`,
+        value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
+        inline: true,
+      },
+    )
+    .setFooter({
+      text: `Game #${gameNumber ?? 1} • S55 Boston University`,
+    });
 
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -343,7 +365,7 @@ export function renderIndividualGamePost(
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))
-      .setLabel('🎮 Set Server / Code')
+      .setLabel('🎮 Set Code')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', game.id, 'choose-game'))

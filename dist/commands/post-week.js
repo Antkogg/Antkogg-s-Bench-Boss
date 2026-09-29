@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, 
 import { DateTime } from 'luxon';
 import { requireManagement } from './authorization.js';
 import { OFFICIAL_SCHEDULE } from '../config/official-schedule.js';
-import { syncAvailabilityPost } from './schedule.js';
+import { DEFAULT_AVAILABILITY_CHANNEL_ID } from '../config/constants.js';
 import { brandedEmbed } from '../renderers/design.js';
 import { renderIndividualGamePost } from '../renderers/schedule.renderer.js';
 import { customId } from '../utils/custom-id.js';
@@ -162,26 +162,25 @@ async function executePostWeek(interaction, context, weekData) {
         });
         addedGames.push(`${game.homeAway === 'AWAY' ? '@' : 'vs'} **${game.opponent}** • ${game.date} at ${game.time} MST`);
     }
-    // Fetch complete week and publish/sync availability board
+    // Fetch complete week and publish individual games to availability channel
     const fullWeek = await context.schedule.getWeek(seasonWeek.id);
+    const channelId = config.teamAvailabilityChannelId || DEFAULT_AVAILABILITY_CHANNEL_ID;
+    const postChannel = (await interaction.client.channels.fetch(channelId).catch(() => null));
     let channelMention = '`#team-availability`';
-    if (fullWeek) {
-        const postChannel = await syncAvailabilityPost(guildId, fullWeek, context, interaction.client);
-        if (postChannel) {
-            channelMention = `<#${postChannel.id}>`;
-            const activeGames = fullWeek.games.filter((g) => g.status !== 'CANCELLED');
-            for (let i = 0; i < activeGames.length; i++) {
-                await postChannel.send(renderIndividualGamePost(activeGames[i], i + 1));
-            }
+    if (postChannel && postChannel.isTextBased() && fullWeek) {
+        channelMention = `<#${postChannel.id}>`;
+        const activeGames = fullWeek.games.filter((g) => g.status !== 'CANCELLED');
+        for (let i = 0; i < activeGames.length; i++) {
+            await postChannel.send(renderIndividualGamePost(activeGames[i], i + 1));
         }
     }
     const embed = brandedEmbed()
-        .setTitle(`🏒 ${weekData.label.toUpperCase()} POSTED TO AVAILABILITY!`)
-        .setDescription(`Successfully loaded **${weekData.games.length} games** for **${weekData.label} (${weekData.datesLabel})**.\n\n` +
-        `The live team availability board has been updated in ${channelMention}!\n\n` +
-        '**Games Loaded:**\n' +
+        .setTitle(`🏒 ${weekData.label.toUpperCase()} POSTED!`)
+        .setDescription(`Successfully posted **${weekData.games.length} individual games** for **${weekData.label} (${weekData.datesLabel})**.\n\n` +
+        `Individual game cards have been posted in ${channelMention}!\n\n` +
+        '**Games Posted:**\n' +
         addedGames.map((g, i) => `${i + 1}. ${g}`).join('\n') +
-        '\n\n*Players with **S55 BU** can now click `[ 🟢 Available for ALL ]` or `[ 🔴 Out for ALL ]` directly in the channel!*');
+        '\n\n*Players can now click `[ 🟢 Available ]` or `[ 🔴 Out ]` directly on each game card!*');
     await interaction.editReply({ embeds: [embed], components: [] });
 }
 //# sourceMappingURL=post-week.js.map

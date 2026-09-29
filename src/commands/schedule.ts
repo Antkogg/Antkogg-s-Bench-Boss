@@ -192,9 +192,11 @@ export async function handleSetCode(
   let targetGameId: string | undefined;
 
   if (gameQuery) {
-    const currentWeek = await context.schedule.currentWeek(interaction.guildId);
-    const activeGames = currentWeek?.games.filter((g) => g.status !== 'CANCELLED') ?? [];
     const num = parseInt(gameQuery, 10);
+    const currentWeek = await context.schedule.currentWeek(interaction.guildId);
+    const activeGames = (currentWeek?.games.filter((g) => g.status !== 'CANCELLED') ?? []).sort(
+      (a, b) => a.scheduledAtUtc.getTime() - b.scheduledAtUtc.getTime(),
+    );
     if (!isNaN(num) && num >= 1 && num <= activeGames.length && !gameQuery.startsWith('c')) {
       targetGameId = activeGames[num - 1]?.id;
     } else {
@@ -204,7 +206,25 @@ export async function handleSetCode(
           g.id.toLowerCase().includes(gameQuery.toLowerCase()) ||
           g.opponentNameSnapshot?.toLowerCase().includes(gameQuery.toLowerCase()),
       );
-      targetGameId = found?.id ?? gameQuery;
+      if (found) {
+        targetGameId = found.id;
+      } else {
+        const allGuildGames = await context.prisma.weeklyGame.findMany({
+          where: {
+            week: { guildConfig: { guildId: interaction.guildId } },
+            status: { not: 'CANCELLED' },
+          },
+          orderBy: { scheduledAtUtc: 'asc' },
+        });
+        if (!isNaN(num) && num >= 1 && num <= allGuildGames.length) {
+          targetGameId = allGuildGames[num - 1]?.id;
+        } else {
+          const match = allGuildGames.find((g) =>
+            g.opponentNameSnapshot?.toLowerCase().includes(gameQuery.toLowerCase()),
+          );
+          targetGameId = match?.id ?? gameQuery;
+        }
+      }
     }
   } else {
     const nearest = await context.schedule.nearestGame(interaction.guildId);
@@ -214,7 +234,7 @@ export async function handleSetCode(
   if (!targetGameId) {
     throw new AppError(
       'NOT_FOUND',
-      'No game found to set server and code for. Specify a game number or ID.',
+      'No game found to set server and code for. Specify a game number (e.g. 1, 2) or ID.',
     );
   }
 
@@ -241,7 +261,7 @@ export async function handleSetCode(
   await context.schedule.markGameInfoNotified(delivered);
 
   const week = await context.schedule.getWeek(updatedGame.weekId);
-  if (week) {
+  if (week && week.messageId) {
     await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
   }
 

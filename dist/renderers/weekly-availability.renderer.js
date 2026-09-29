@@ -25,34 +25,34 @@ export function renderWeeklyAvailability(week, rosterMembers) {
             const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
             const label = gameOpponentLabel(game);
             // Starters from lineup
-            const lineupParts = POSITIONS.map((pos) => {
+            const lineupMap = new Map();
+            for (const pos of POSITIONS) {
                 const assignment = game.lineup?.find((l) => l.position === pos);
-                return assignment
-                    ? `**${pos}:** <@${assignment.player.discordUserId}>`
-                    : `**${pos}:** *Open*`;
-            });
-            const forwards = lineupParts.slice(0, 3).join(' | ');
-            const defenseGoalie = lineupParts.slice(3).join(' | ');
+                lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '*Open*');
+            }
+            const forwardLine = `\`LW\` ${lineupMap.get('LW')} ┃ \`C\` ${lineupMap.get('C')} ┃ \`RW\` ${lineupMap.get('RW')}`;
+            const defenseLine = `\`LD\` ${lineupMap.get('LD')} ┃ \`RD\` ${lineupMap.get('RD')} ┃ \`G\` ${lineupMap.get('G')}`;
             // Player availability responses
             const availablePlayers = (game.responses ?? [])
                 .filter((r) => r.status === 'AVAILABLE')
                 .map((r) => {
                 const p = r.submission.player;
-                const pos = p.signupPositions?.length ? ` (${p.signupPositions.join('/')})` : '';
+                const pos = p.signupPositions?.length ? ` *(${p.signupPositions.join('/')})*` : '';
                 return `<@${p.discordUserId}>${pos}`;
             });
             const outPlayers = (game.responses ?? [])
                 .filter((r) => r.status === 'UNAVAILABLE')
                 .map((r) => `<@${r.submission.player.discordUserId}>`);
             const serverCode = game.gameServer || game.gameCode
-                ? `\n🎮 **Server:** ${game.gameServer ?? 'TBD'} • **Code:** ${game.gameCode ?? 'TBD'}`
+                ? `🎮 \`Server:\` **${game.gameServer ?? 'TBD'}** ┃ \`Code:\` **${game.gameCode ?? 'TBD'}**\n`
                 : '';
-            const fieldValue = `⏰ **Time:** <t:${timeUnix}:F> (<t:${timeUnix}:R>)${serverCode}\n` +
-                `📋 **Lineup:**\n${forwards}\n${defenseGoalie}\n` +
+            const fieldValue = `⏰ **<t:${timeUnix}:F>** (<t:${timeUnix}:R>)\n` +
+                serverCode +
+                `📋 **Lineup:** ${forwardLine} • ${defenseLine}\n` +
                 `🟢 **Available (${availablePlayers.length}):** ${availablePlayers.length ? availablePlayers.join(', ') : '*None yet*'}\n` +
                 `🔴 **Out (${outPlayers.length}):** ${outPlayers.length ? outPlayers.join(', ') : '*None*'}`;
             embed.addFields({
-                name: `🏒 GAME ${i + 1}: ${label.toUpperCase()}`,
+                name: `🏒 GAME ${i + 1} • ${label}`,
                 value: fieldValue.slice(0, 1024),
             });
         }
