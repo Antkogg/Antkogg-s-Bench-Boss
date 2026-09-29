@@ -99,6 +99,41 @@ export class GameDayReminderJob {
                     : { failedAt: new Date() },
             });
         }
+        const upcomingLineupGames = await this.prisma.weeklyGame.findMany({
+            where: {
+                status: { in: ['SCHEDULED', 'POSTPONED'] },
+                scheduledAtUtc: { gt: now, lte: new Date(now.getTime() + 180 * 60_000) },
+                lineup: { some: { confirmed: true } },
+            },
+            include: {
+                lineup: { where: { confirmed: true }, include: { player: true } },
+                week: { include: { guildConfig: true } },
+            },
+        });
+        for (const game of upcomingLineupGames) {
+            const scheduledFor = new Date(game.scheduledAtUtc.getTime() - 180 * 60_000);
+            if (scheduledFor > now)
+                continue;
+            const claim = await this.prisma.gameManagementReminder.upsert({
+                where: { gameId_scheduledFor: { gameId: game.id, scheduledFor } },
+                create: { gameId: game.id, scheduledFor },
+                update: {},
+            });
+            if (claim.sentAt)
+                continue;
+            let allSent = true;
+            for (const assignment of game.lineup) {
+                const sent = await this.notifications.gameReminder(assignment.player.discordUserId, game, assignment.position);
+                if (!sent)
+                    allSent = false;
+            }
+            await this.prisma.gameManagementReminder.update({
+                where: { id: claim.id },
+                data: allSent
+                    ? { sentAt: new Date(), failedAt: null }
+                    : { sentAt: new Date(), failedAt: new Date() },
+            });
+        }
     }
 }
 //# sourceMappingURL=game-day-reminders.js.map

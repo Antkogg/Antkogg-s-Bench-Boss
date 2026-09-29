@@ -1,8 +1,195 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { renderGame, renderManagementWeek, renderPlayerWeek, } from '../renderers/schedule.renderer.js';
-import { renderSuccess } from '../renderers/design.js';
+import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
+import { brandedEmbed, renderSuccess } from '../renderers/design.js';
+import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { requireManagement } from './authorization.js';
+export async function syncAvailabilityPost(guildId, week, context, client) {
+    const config = await context.config.ensure(guildId);
+    if (!config.teamAvailabilityChannelId)
+        return null;
+    try {
+        const channel = (await client.channels.fetch(config.teamAvailabilityChannelId));
+        if (!channel?.isTextBased())
+            return null;
+        if (week.messageId && week.channelId === channel.id) {
+            try {
+                const msg = await channel.messages.fetch(week.messageId);
+                await msg.edit(renderWeeklyAvailability(week));
+                return channel;
+            }
+            catch {
+                const msg = await channel.send(renderWeeklyAvailability(week));
+                await context.weeklyAvailability.saveMessage(week.id, channel.id, msg.id);
+                return channel;
+            }
+        }
+        else {
+            const msg = await channel.send(renderWeeklyAvailability(week));
+            await context.weeklyAvailability.saveMessage(week.id, channel.id, msg.id);
+            return channel;
+        }
+    }
+    catch (err) {
+        console.error('Failed to sync weekly availability post:', err);
+        return null;
+    }
+}
+export async function handleAddGame(interaction, context) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await requireManagement(interaction, context);
+    const opponent = interaction.options.getString('opponent', true);
+    const date = interaction.options.getString('date', true);
+    const time = interaction.options.getString('time', true);
+    const homeAway = interaction.options.getString('home_away') ?? 'HOME';
+    const server = interaction.options.getString('server')?.trim() || undefined;
+    const code = interaction.options.getString('code')?.trim() || undefined;
+    const weekId = interaction.options.getString('week')?.trim() || undefined;
+    const week = await context.schedule.addGame({
+        guildId: interaction.guildId,
+        weekId,
+        opponent,
+        date,
+        time,
+        homeAway,
+        server,
+        code,
+        actorDiscordId: interaction.user.id,
+    });
+    const postedChannel = await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    const newGame = week.games[week.games.length - 1];
+    const timeUnix = newGame ? Math.floor(newGame.scheduledAtUtc.getTime() / 1000) : null;
+    const gameLabel = homeAway === 'AWAY' ? `@ ${opponent}` : `vs ${opponent}`;
+    const embed = brandedEmbed()
+        .setTitle(`🏒 Game Added: ${gameLabel}`)
+        .setDescription(timeUnix
+        ? `📅 **<t:${timeUnix}:F>** (<t:${timeUnix}:R>)\n🏠 **Matchup:** ${homeAway === 'HOME' ? 'Home' : 'Away'}`
+        : `📅 **${date}** at **${time}**`)
+        .addFields({
+        name: '🎮 Server & Code',
+        value: server || code
+            ? `**Server:** ${server ?? 'TBD'}\n**Code:** ${code ?? 'TBD'}`
+            : 'Not set yet (use button below or `/set-code`)',
+        inline: true,
+    }, {
+        name: '📌 Availability Post',
+        value: postedChannel
+            ? `<#${postedChannel.id}> (updated)`
+            : 'Configure `#team-availability` with `/setup channels`',
+        inline: true,
+    }, {
+        name: '📋 Total Games This Week',
+        value: `${week.games.filter((g) => g.status !== 'CANCELLED').length} games scheduled`,
+        inline: true,
+    });
+    const buttons = new ActionRowBuilder();
+    if (newGame) {
+        buttons.addComponents(new ButtonBuilder()
+            .setCustomId(customId('lineup-action', newGame.id, 'build'))
+            .setLabel('Build Lineup')
+            .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+            .setCustomId(customId('game-action', newGame.id, 'set-code'))
+            .setLabel('Set Server / Code')
+            .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+            .setCustomId(customId('game-action', newGame.id, 'delete'))
+            .setLabel('Delete Game')
+            .setStyle(ButtonStyle.Danger));
+    }
+    await interaction.reply({
+        ephemeral: true,
+        embeds: [embed],
+        components: buttons.components.length ? [buttons] : [],
+    });
+}
+export async function handleSetCode(interaction, context) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await requireManagement(interaction, context);
+    const server = interaction.options.getString('server', true);
+    const code = interaction.options.getString('code', true);
+    const gameQuery = interaction.options.getString('game')?.trim();
+    let targetGameId;
+    if (gameQuery) {
+        const currentWeek = await context.schedule.currentWeek(interaction.guildId);
+        const activeGames = currentWeek?.games.filter((g) => g.status !== 'CANCELLED') ?? [];
+        const num = parseInt(gameQuery, 10);
+        if (!isNaN(num) && num >= 1 && num <= activeGames.length) {
+            targetGameId = activeGames[num - 1]?.id;
+        }
+        else {
+            targetGameId = gameQuery;
+        }
+    }
+    else {
+        const nearest = await context.schedule.nearestGame(interaction.guildId);
+        targetGameId = nearest?.id;
+    }
+    if (!targetGameId) {
+        throw new AppError('NOT_FOUND', 'No game found to set server and code for. Specify a game number or ID.');
+    }
+    const config = await context.config.ensure(interaction.guildId);
+    const updatedGame = await context.schedule.setServerCode({
+        guildId: interaction.guildId,
+        gameId: targetGameId,
+        server,
+        code,
+        actorDiscordId: interaction.user.id,
+    });
+    const delivered = [];
+    if (config.notifyConfirmedGameInfo) {
+        for (const assignment of updatedGame.lineup) {
+            const sent = await context.notifications.gameInfoReady(assignment.player.discordUserId, updatedGame, assignment.position);
+            if (sent)
+                delivered.push(assignment.id);
+        }
+    }
+    await context.schedule.markGameInfoNotified(delivered);
+    const week = await context.schedule.getWeek(updatedGame.weekId);
+    if (week) {
+        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
+    await interaction.reply({
+        ephemeral: true,
+        embeds: [
+            renderSuccess('Server & Code Saved', `**${updatedGame.opponentNameSnapshot ?? 'Upcoming Game'}**\n` +
+                `**Server:** ${server}\n**Code:** ${code}\n\n` +
+                (config.notifyConfirmedGameInfo
+                    ? 'Confirmed lineup players were notified via DM.'
+                    : 'Confirmed players can now use `/game`.')),
+        ],
+    });
+}
+export async function handleDeleteGame(interaction, context) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await requireManagement(interaction, context);
+    const gameQuery = interaction.options.getString('game', true).trim();
+    const currentWeek = await context.schedule.currentWeek(interaction.guildId);
+    if (!currentWeek)
+        throw new AppError('NOT_FOUND', 'No active week or games found.');
+    const activeGames = currentWeek.games.filter((g) => g.status !== 'CANCELLED');
+    let targetGameId;
+    const num = parseInt(gameQuery, 10);
+    if (!isNaN(num) && num >= 1 && num <= activeGames.length) {
+        targetGameId = activeGames[num - 1]?.id;
+    }
+    else {
+        const found = activeGames.find((g) => g.id === gameQuery || g.opponentNameSnapshot?.toLowerCase() === gameQuery.toLowerCase());
+        targetGameId = found?.id ?? gameQuery;
+    }
+    if (!targetGameId) {
+        throw new AppError('NOT_FOUND', 'Could not find a game matching that number or ID.');
+    }
+    const updatedWeek = await context.schedule.deleteGame(interaction.guildId, targetGameId, interaction.user.id);
+    await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
+    await interaction.reply({
+        ephemeral: true,
+        embeds: [renderSuccess('Game Deleted', 'The game was removed from the schedule.')],
+    });
+}
 export async function handleTimezone(interaction, context) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
@@ -30,6 +217,12 @@ export async function handleWeek(interaction, context) {
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
     await requireManagement(interaction, context);
     const subcommand = interaction.options.getSubcommand();
+    if (subcommand === 'code')
+        return handleSetCode(interaction, context);
+    if (subcommand === 'add-game')
+        return handleAddGame(interaction, context);
+    if (subcommand === 'delete-game')
+        return handleDeleteGame(interaction, context);
     const week = subcommand === 'setup'
         ? await context.schedule.createWeek({
             guildId: interaction.guildId,

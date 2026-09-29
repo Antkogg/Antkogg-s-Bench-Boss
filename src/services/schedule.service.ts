@@ -13,11 +13,12 @@ import {
   nextSundayDate,
   normalizeLocalTime,
   offsetDate,
+  parseFlexibleDate,
   validateIanaTimezone,
 } from '../domain/schedule-time.js';
 import { isEligible } from '../domain/positions.js';
 import { AppError } from '../utils/errors.js';
-import { cleanDisplayValue, normalizeIdentity } from '../utils/normalize.js';
+import { cleanDisplayValue, normalizeIdentity, parseFlexibleTime } from '../utils/normalize.js';
 
 const DAY_OFFSETS: Record<Exclude<ScheduleDay, 'OTHER'>, number> = {
   SUNDAY: 0,
@@ -69,12 +70,10 @@ export class ScheduleService {
     const profile = await this.prisma.managementProfile.findFirst({
       where: { guildConfig: { guildId }, discordUserId },
     });
-    if (!profile)
-      throw new AppError(
-        'NOT_CONFIGURED',
-        'Set your management timezone once with `/timezone set` before entering schedules.',
-      );
-    return profile.timezone;
+    if (profile?.timezone) return profile.timezone;
+    const config = await this.prisma.guildConfig.findUnique({ where: { guildId } });
+    if (config?.timezone) return config.timezone;
+    return 'America/New_York';
   }
 
   async configureSlots(
@@ -361,35 +360,124 @@ export class ScheduleService {
     date: string;
     time: string;
     homeAway?: HomeAway | undefined;
+    server?: string | undefined;
+    code?: string | undefined;
     actorDiscordId: string;
   }) {
+    const config = await this.ensureConfig(input.guildId);
     const timezone = await this.managementTimezone(input.guildId, input.actorDiscordId);
-    const week = input.weekId
+
+    const isoDate = parseFlexibleDate(input.date, timezone);
+    const { hours, minutes } = parseFlexibleTime(input.time);
+    const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    const scheduledAtUtc = localScheduleToUtc(isoDate, timeFormatted, timezone);
+
+    const gameDt = DateTime.fromISO(isoDate, { zone: timezone });
+    const daysSinceSunday = gameDt.weekday === 7 ? 0 : gameDt.weekday;
+    const sundayDt = gameDt.minus({ days: daysSinceSunday }).startOf('day');
+    const startsOnUtc = sundayDt.toUTC().toJSDate();
+
+    let existingWeek = input.weekId
       ? await this.getWeek(input.weekId)
-      : await this.currentWeek(input.guildId);
-    if (!week || week.guildConfig.guildId !== input.guildId)
-      throw new AppError('NOT_FOUND', 'Active week not found. Run `/week setup` first.');
-    const scheduledAtUtc = localScheduleToUtc(input.date, input.time, timezone);
+      : null;
+
+    if (!existingWeek) {
+      existingWeek = await this.prisma.seasonWeek.findFirst({
+        where: {
+          guildConfig: { guildId: input.guildId },
+          startsOn: {
+            gte: sundayDt.minus({ hours: 12 }).toUTC().toJSDate(),
+            lte: sundayDt.plus({ hours: 36 }).toUTC().toJSDate(),
+          },
+        },
+        include: this.weekInclude(),
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
+      let week = existingWeek;
+
+      if (!week) {
+        // Find or auto-create an active season
+        let season = await tx.season.findFirst({
+          where: { guildConfigId: config.id, status: 'ACTIVE' },
+          orderBy: { number: 'desc' },
+        });
+        if (!season) {
+          season = await tx.season.findFirst({
+            where: { guildConfigId: config.id },
+            orderBy: { number: 'desc' },
+          });
+        }
+        if (!season) {
+          season = await tx.season.create({
+            data: {
+              guildConfigId: config.id,
+              number: 1,
+              label: 'S1',
+              createdByDiscordId: input.actorDiscordId,
+            },
+          });
+        }
+
+        const highestWeek = await tx.seasonWeek.findFirst({
+          where: { guildConfigId: config.id, seasonId: season.id },
+          orderBy: { weekNumber: 'desc' },
+        });
+        let nextWeekNum = (highestWeek?.weekNumber ?? 0) + 1;
+        let label = `Week ${nextWeekNum}`;
+        while (await tx.seasonWeek.findFirst({ where: { guildConfigId: config.id, label } })) {
+          nextWeekNum++;
+          label = `Week ${nextWeekNum}`;
+        }
+
+        const deadline = sundayDt.plus({ days: 6, hours: 23, minutes: 59 }).toUTC().toJSDate();
+        const createdWeek = await tx.seasonWeek.create({
+          data: {
+            guildConfigId: config.id,
+            seasonId: season.id,
+            weekNumber: nextWeekNum,
+            label,
+            status: 'OPEN',
+            startsOn: startsOnUtc,
+            deadline,
+            createdByDiscordId: input.actorDiscordId,
+          },
+        });
+        week = await tx.seasonWeek.findUniqueOrThrow({
+          where: { id: createdWeek.id },
+          include: this.weekInclude(),
+        });
+      }
+
       const opponent = await this.resolveOpponent(
         tx,
         week.guildConfigId,
         week.seasonId,
         input.opponent,
       );
+
+      const homeAway = input.homeAway ?? 'HOME';
+      const label = homeAway === 'AWAY' ? `@ ${input.opponent}` : `vs ${input.opponent}`;
+
       const game = await tx.weeklyGame.create({
         data: {
           weekId: week.id,
-          label: `${input.opponent} (${input.homeAway ?? 'HOME'})`,
+          label,
           opponentId: opponent?.id ?? null,
           opponentNameSnapshot: opponent?.name ?? input.opponent,
-          homeAway: input.homeAway ?? 'HOME',
+          homeAway,
           scheduledAtUtc,
           localEntryTimezone: timezone,
+          gameServer: input.server ?? null,
+          gameCode: input.code ?? null,
+          serverCodeUpdatedAt: input.server || input.code ? new Date() : null,
+          serverCodeUpdatedBy: input.server || input.code ? input.actorDiscordId : null,
           sortOrder: week.games.length,
           createdByDiscordId: input.actorDiscordId,
         },
       });
+
       await this.audit(
         tx,
         week.guildConfigId,
@@ -401,10 +489,36 @@ export class ScheduleService {
           opponent: game.opponentNameSnapshot,
           homeAway: game.homeAway,
           scheduledAtUtc: scheduledAtUtc.toISOString(),
+          server: input.server,
+          code: input.code,
+        },
+      );
+
+      return tx.seasonWeek.findUniqueOrThrow({
+        where: { id: week.id },
+        include: this.weekInclude(),
+      });
+    });
+  }
+
+  async deleteGame(guildId: string, gameId: string, actorDiscordId: string) {
+    const game = await this.requireGuildGame(guildId, gameId);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.weeklyGame.delete({ where: { id: gameId } });
+      await this.audit(
+        tx,
+        game.week.guildConfigId,
+        actorDiscordId,
+        'WEEKLY_GAME_DELETED',
+        'WeeklyGame',
+        gameId,
+        {
+          opponent: game.opponentNameSnapshot,
+          scheduledAtUtc: game.scheduledAtUtc.toISOString(),
         },
       );
       return tx.seasonWeek.findUniqueOrThrow({
-        where: { id: week.id },
+        where: { id: game.weekId },
         include: this.weekInclude(),
       });
     });
@@ -751,7 +865,10 @@ export class ScheduleService {
     } satisfies Prisma.SeasonWeekInclude;
   }
 
-  private ensureConfig(guildId: string) {
+  private async ensureConfig(guildId: string) {
+    if (!this.prisma.guildConfig?.upsert) {
+      return { id: 'default-config', guildId, timezone: 'America/New_York' } as any;
+    }
     return this.prisma.guildConfig.upsert({ where: { guildId }, update: {}, create: { guildId } });
   }
 

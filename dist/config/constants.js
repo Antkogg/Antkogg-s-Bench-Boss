@@ -16,6 +16,6 @@ export const DISCORD_LIMITS = {
     embedDescription: 4096,
     fieldValue: 1024,
     actionRows: 5,
-    buttonsPerRow: 5,
 };
+export const DEFAULT_TEAM_ROLE_ID = '1543415709831397386';
 //# sourceMappingURL=constants.js.map

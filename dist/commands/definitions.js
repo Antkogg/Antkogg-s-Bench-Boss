@@ -252,7 +252,66 @@ export const commandDefinitions = [
         .addIntegerOption((option) => option.setName('week').setDescription('Week number').setMinValue(1).setRequired(true))
         .addStringOption((option) => option.setName('sunday').setDescription('Optional Sunday date: YYYY-MM-DD')))
         .addSubcommand((sub) => sub.setName('next').setDescription('Create the next week from standard slots'))
-        .addSubcommand((sub) => sub.setName('view').setDescription('View the current week')),
+        .addSubcommand((sub) => sub.setName('view').setDescription('View the current week'))
+        .addSubcommand((sub) => sub
+        .setName('add-game')
+        .setDescription('Add a game with team name, date, and time')
+        .addStringOption((option) => option.setName('opponent').setDescription('Opponent team name').setRequired(true))
+        .addStringOption((option) => option
+        .setName('date')
+        .setDescription('Game date: Sunday, Monday, Tomorrow, or YYYY-MM-DD')
+        .setRequired(true))
+        .addStringOption((option) => option.setName('time').setDescription('Game start time, e.g. 8:30 PM').setRequired(true))
+        .addStringOption((option) => option
+        .setName('home_away')
+        .setDescription('Home or Away game')
+        .addChoices({ name: 'Home', value: 'HOME' }, { name: 'Away', value: 'AWAY' }))
+        .addStringOption((option) => option.setName('server').setDescription('Optional server name (e.g. East Coast 1)'))
+        .addStringOption((option) => option.setName('code').setDescription('Optional game password/code'))
+        .addStringOption((option) => option.setName('week').setDescription('Week ID (omit for current week)')))
+        .addSubcommand((sub) => sub
+        .setName('code')
+        .setDescription('Set or update server and game code for a game')
+        .addStringOption((option) => option.setName('server').setDescription('Server name (e.g. East Coast 1)').setRequired(true))
+        .addStringOption((option) => option.setName('code').setDescription('Game password/code').setRequired(true))
+        .addStringOption((option) => option
+        .setName('game')
+        .setDescription('Game number (1, 2...) or ID (omit for nearest upcoming game)')))
+        .addSubcommand((sub) => sub
+        .setName('delete-game')
+        .setDescription('Delete a game from the schedule')
+        .addStringOption((option) => option.setName('game').setDescription('Game number (1, 2...) or ID to delete').setRequired(true))),
+    new SlashCommandBuilder()
+        .setName('add-game')
+        .setDescription('Add a game to the schedule (opponent, date, time)')
+        .addStringOption((option) => option.setName('opponent').setDescription('Opponent team name (e.g. Bruins, NYR)').setRequired(true))
+        .addStringOption((option) => option
+        .setName('date')
+        .setDescription('Game date (e.g. Sunday, Monday, Tomorrow, Today, or 10/04)')
+        .setRequired(true))
+        .addStringOption((option) => option
+        .setName('time')
+        .setDescription('Game start time (e.g. 8:30 PM, 9:00 PM, 21:00)')
+        .setRequired(true))
+        .addStringOption((option) => option
+        .setName('home_away')
+        .setDescription('Home or Away game (default: Home)')
+        .addChoices({ name: 'Home', value: 'HOME' }, { name: 'Away', value: 'AWAY' }))
+        .addStringOption((option) => option.setName('server').setDescription('Optional server name (e.g. East Coast 1)'))
+        .addStringOption((option) => option.setName('code').setDescription('Optional game password/code')),
+    new SlashCommandBuilder()
+        .setName('set-code')
+        .setDescription('Set or update server and password code for a game')
+        .addStringOption((option) => option.setName('server').setDescription('Server name (e.g. East Coast 1)').setRequired(true))
+        .addStringOption((option) => option.setName('code').setDescription('Game password/code').setRequired(true))
+        .addStringOption((option) => option
+        .setName('game')
+        .setDescription('Game number (1, 2...) or ID (omit for nearest upcoming game)')),
+    new SlashCommandBuilder()
+        .setName('delete-game')
+        .setDescription('Delete a game from the schedule')
+        .addStringOption((option) => option.setName('game').setDescription('Game number (1, 2...) or ID to delete').setRequired(true)),
+    new SlashCommandBuilder().setName('games').setDescription('View scheduled games and lineup cards for this week'),
     new SlashCommandBuilder().setName('schedule').setDescription('View the current LG schedule'),
     new SlashCommandBuilder().setName('game').setDescription('View your nearest confirmed game'),
     new SlashCommandBuilder()

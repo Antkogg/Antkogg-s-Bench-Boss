@@ -43,4 +43,70 @@ export function localWeekday(date, timezone) {
     const weekday = DateTime.fromJSDate(date).setZone(timezone).weekday;
     return weekday === 7 ? 'SUNDAY' : weekday === 1 ? 'MONDAY' : weekday === 2 ? 'TUESDAY' : 'OTHER';
 }
+export function parseFlexibleDate(dateStr, timezone, now = DateTime.now().setZone(timezone)) {
+    validateIanaTimezone(timezone);
+    const cleaned = dateStr.trim();
+    const lower = cleaned.toLowerCase();
+    if (lower === 'today' || lower === 'tonight') {
+        return now.toISODate();
+    }
+    if (lower === 'tomorrow') {
+        return now.plus({ days: 1 }).toISODate();
+    }
+    if (lower === 'yesterday') {
+        return now.minus({ days: 1 }).toISODate();
+    }
+    const DAY_MAP = {
+        monday: 1, mon: 1,
+        tuesday: 2, tue: 2, tues: 2,
+        wednesday: 3, wed: 3,
+        thursday: 4, thu: 4, thur: 4, thurs: 4,
+        friday: 5, fri: 5,
+        saturday: 6, sat: 6,
+        sunday: 7, sun: 7,
+    };
+    if (DAY_MAP[lower] !== undefined) {
+        const targetDay = DAY_MAP[lower];
+        const currentDay = now.weekday;
+        let daysToAdd = (targetDay - currentDay + 7) % 7;
+        return now.plus({ days: daysToAdd }).toISODate();
+    }
+    // Check if it's already ISO YYYY-MM-DD
+    const iso = DateTime.fromISO(cleaned, { zone: timezone });
+    if (iso.isValid && cleaned.length >= 8 && cleaned.includes('-')) {
+        return iso.toISODate();
+    }
+    // Common date formats: 10/4, 10/04, 10-4, 10-04, Oct 4, October 4, Oct 4th
+    const sanitized = cleaned.replace(/(st|nd|rd|th)/gi, '').trim();
+    const formats = [
+        'M/d',
+        'M-d',
+        'MM/dd',
+        'MM-dd',
+        'yyyy/M/d',
+        'yyyy/MM/dd',
+        'yyyy-M-d',
+        'yyyy-MM-dd',
+        'LLL d',
+        'LLLL d',
+        'LLL dd',
+        'LLLL dd',
+        'd LLL',
+        'd LLLL',
+    ];
+    for (const fmt of formats) {
+        const dt = DateTime.fromFormat(sanitized, fmt, { zone: timezone });
+        if (dt.isValid) {
+            let withYear = dt;
+            if (!fmt.includes('y')) {
+                withYear = dt.set({ year: now.year });
+                if (withYear < now.minus({ days: 60 })) {
+                    withYear = withYear.plus({ years: 1 });
+                }
+            }
+            return withYear.toISODate();
+        }
+    }
+    throw new AppError('INVALID_INPUT', `Could not parse date "${dateStr}". Use a day name (e.g. Sunday, Monday, Tomorrow) or date (e.g. 10/04 or 2026-10-04).`);
+}
 //# sourceMappingURL=schedule-time.js.map

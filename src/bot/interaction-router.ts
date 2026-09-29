@@ -7,7 +7,15 @@ import { handleSetup } from '../commands/setup.js';
 import { handleAvailability } from '../commands/availability.js';
 import { handleTeam, handleTc, handleTeamButton } from '../commands/team.js';
 import { handleAnnouncement } from '../commands/announce.js';
-import { handleGame, handleSchedule, handleTimezone, handleWeek } from '../commands/schedule.js';
+import {
+  handleAddGame,
+  handleDeleteGame,
+  handleGame,
+  handleSchedule,
+  handleSetCode,
+  handleTimezone,
+  handleWeek,
+} from '../commands/schedule.js';
 import { handleBuilds, handleDisconnect, handleRule, handleRules } from '../commands/rules.js';
 import type { BotContext } from '../commands/context.js';
 import { renderError } from '../renderers/design.js';
@@ -64,6 +72,10 @@ export async function routeInteraction(
         await handleAnnouncement(interaction, context);
       else if (interaction.commandName === 'timezone') await handleTimezone(interaction, context);
       else if (interaction.commandName === 'week') await handleWeek(interaction, context);
+      else if (interaction.commandName === 'add-game') await handleAddGame(interaction, context);
+      else if (interaction.commandName === 'set-code') await handleSetCode(interaction, context);
+      else if (interaction.commandName === 'delete-game') await handleDeleteGame(interaction, context);
+      else if (interaction.commandName === 'games') await handleSchedule(interaction, context);
       else if (interaction.commandName === 'schedule') await handleSchedule(interaction, context);
       else if (interaction.commandName === 'game') await handleGame(interaction, context);
       return;

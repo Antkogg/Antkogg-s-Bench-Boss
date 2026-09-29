@@ -361,6 +361,21 @@ export async function handleGameButton(
   parsed: ParsedCustomId,
 ) {
   await requireManagement(interaction, context);
+  if (parsed.value === 'delete') {
+    const updatedWeek = await context.schedule.deleteGame(
+      interaction.guildId!,
+      parsed.entityId,
+      interaction.user.id,
+    );
+    if (updatedWeek) {
+      await refreshWeekPost(interaction, updatedWeek);
+    }
+    await interaction.reply({
+      ephemeral: true,
+      embeds: [renderSuccess('Game Deleted', 'The game was removed from the schedule.')],
+    });
+    return;
+  }
   const game = await context.schedule.game(parsed.entityId);
   if (!game) throw new AppError('NOT_FOUND', 'Game not found.');
   const make = (id: string, label: string, value?: string) => {
@@ -465,7 +480,7 @@ export async function handleGameStatusSelect(
 }
 
 async function refreshWeekPost(
-  interaction: ModalSubmitInteraction | StringSelectMenuInteraction,
+  interaction: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction,
   week: Awaited<ReturnType<BotContext['schedule']['getWeek']>>,
 ) {
   if (!week?.channelId || !week.messageId) return;

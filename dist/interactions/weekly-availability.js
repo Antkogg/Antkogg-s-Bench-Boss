@@ -3,6 +3,7 @@ import { requireManagement } from '../commands/authorization.js';
 import { availabilityGameSelector } from '../commands/availability.js';
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { gameOpponentLabel, groupGamesByGuildDay } from '../renderers/schedule.renderer.js';
+import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 export async function handleWeeklyAvailabilityButton(interaction, context, parsed) {
@@ -18,6 +19,25 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
         throw new AppError('INVALID_STATE', 'Availability is currently locked.');
     if (!week.games.length)
         throw new AppError('INVALID_STATE', 'No games have been configured for this week.');
+    const requiredRoleId = week.guildConfig.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+    const member = interaction.member && 'roles' in interaction.member
+        ? interaction.member
+        : await interaction.guild?.members.fetch(interaction.user.id);
+    const hasRole = member &&
+        ('roles' in member && 'cache' in member.roles
+            ? member.roles.cache.has(requiredRoleId)
+            : Array.isArray(member.roles)
+                ? member.roles.includes(requiredRoleId)
+                : false);
+    if (!hasRole) {
+        throw new AppError('NOT_ALLOWED', `Only players with the team role (<@&${requiredRoleId}>) can submit availability.`);
+    }
+    if (player.teamStatus !== 'ROSTER') {
+        await context.prisma.player.update({
+            where: { id: player.id },
+            data: { teamStatus: 'ROSTER' },
+        });
+    }
     if (parsed.value === 'unavailable') {
         await context.weeklyAvailability.submit({
             guildId: interaction.guildId,
@@ -106,6 +126,22 @@ export async function handleAvailabilityReminderButton(interaction, context, par
 export async function handleWeeklyAvailabilitySelect(interaction, context, parsed) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Submit availability inside the server.');
+    const week = await context.weeklyAvailability.getWeek(parsed.entityId);
+    if (!week)
+        throw new AppError('STALE_INTERACTION', 'This availability week no longer exists.');
+    const requiredRoleId = week.guildConfig.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+    const member = interaction.member && 'roles' in interaction.member
+        ? interaction.member
+        : await interaction.guild?.members.fetch(interaction.user.id);
+    const hasRole = member &&
+        ('roles' in member && 'cache' in member.roles
+            ? member.roles.cache.has(requiredRoleId)
+            : Array.isArray(member.roles)
+                ? member.roles.includes(requiredRoleId)
+                : false);
+    if (!hasRole) {
+        throw new AppError('NOT_ALLOWED', `Only players with the team role (<@&${requiredRoleId}>) can submit availability.`);
+    }
     const submission = await context.weeklyAvailability.submit({
         guildId: interaction.guildId,
         discordUserId: interaction.user.id,

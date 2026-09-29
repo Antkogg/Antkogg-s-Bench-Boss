@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { DateTime } from 'luxon';
 import type { PrismaClient } from '../src/generated/prisma/client.js';
-import { localScheduleToUtc } from '../src/domain/schedule-time.js';
+import { localScheduleToUtc, parseFlexibleDate } from '../src/domain/schedule-time.js';
 import { discordTimestamp } from '../src/renderers/design.js';
 import { GameDayReminderJob } from '../src/jobs/game-day-reminders.js';
 import { ScheduleService } from '../src/services/schedule.service.js';
@@ -238,5 +239,98 @@ describe('regular-season scheduling workflow', () => {
     const result = await scheduleService.confirmLineup('guild-1', 'game-1', 'manager-1');
     expect(result.newlyConfirmed).toHaveLength(2);
     expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { gameId: 'game-1' } }));
+  });
+
+  it('parses flexible dates correctly', () => {
+    // Fixed base date: Monday, Sep 28, 2026
+    const baseNow = DateTime.fromISO('2026-09-28T12:00:00', { zone: 'America/New_York' });
+    expect(parseFlexibleDate('Today', 'America/New_York', baseNow)).toBe('2026-09-28');
+    expect(parseFlexibleDate('Tomorrow', 'America/New_York', baseNow)).toBe('2026-09-29');
+    expect(parseFlexibleDate('Sunday', 'America/New_York', baseNow)).toBe('2026-10-04');
+    expect(parseFlexibleDate('Monday', 'America/New_York', baseNow)).toBe('2026-09-28');
+    expect(parseFlexibleDate('Tuesday', 'America/New_York', baseNow)).toBe('2026-09-29');
+    expect(parseFlexibleDate('10/04', 'America/New_York', baseNow)).toBe('2026-10-04');
+    expect(parseFlexibleDate('2026-10-04', 'America/New_York', baseNow)).toBe('2026-10-04');
+    expect(parseFlexibleDate('Oct 4th', 'America/New_York', baseNow)).toBe('2026-10-04');
+  });
+
+  it('falls back to America/New_York when management timezone is not set', async () => {
+    const prisma = {
+      managementProfile: { findFirst: vi.fn(async () => null) },
+      guildConfig: { findUnique: vi.fn(async () => null) },
+    } as unknown as PrismaClient;
+    const service = new ScheduleService(prisma);
+    const tz = await service.managementTimezone('guild-1', 'manager-1');
+    expect(tz).toBe('America/New_York');
+  });
+
+  it('auto-creates a week when adding a game if no week exists', async () => {
+    const createWeek = vi.fn(async ({ data }: any) => ({
+      id: 'auto-week-1',
+      guildConfigId: 'config-1',
+      seasonId: 'season-1',
+      games: [],
+      ...data,
+    }));
+    const createGame = vi.fn(async ({ data }: any) => ({
+      id: 'game-1',
+      ...data,
+    }));
+    const tx = {
+      season: {
+        findFirst: vi.fn(async () => ({ id: 'season-1', number: 1 })),
+      },
+      seasonWeek: {
+        findFirst: vi.fn(async () => null),
+        create: createWeek,
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: 'auto-week-1',
+          guildConfigId: 'config-1',
+          seasonId: 'season-1',
+          games: [{ id: 'game-1', opponentNameSnapshot: 'Leafs', homeAway: 'HOME' }],
+        })),
+      },
+      opponent: {
+        findFirst: vi.fn(async () => null),
+        create: vi.fn(async ({ data }: any) => ({ id: 'opp-1', name: data.name })),
+      },
+      weeklyGame: {
+        create: createGame,
+      },
+      auditLog: {
+        create: vi.fn(async () => ({})),
+      },
+    };
+    const prisma = {
+      managementProfile: { findFirst: vi.fn(async () => null) },
+      guildConfig: { findUnique: vi.fn(async () => null) },
+      seasonWeek: { findFirst: vi.fn(async () => null) },
+      $transaction: async (cb: any) => cb(tx),
+    } as unknown as PrismaClient;
+
+    const service = new ScheduleService(prisma);
+    const result = await service.addGame({
+      guildId: 'guild-1',
+      opponent: 'Leafs',
+      date: '2026-10-04',
+      time: '8:30 PM',
+      actorDiscordId: 'manager-1',
+    });
+
+    expect(createWeek).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'OPEN',
+        }),
+      }),
+    );
+    expect(createGame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          opponentNameSnapshot: 'Leafs',
+        }),
+      }),
+    );
+    expect(result.id).toBe('auto-week-1');
   });
 });

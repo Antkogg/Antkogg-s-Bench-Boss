@@ -6,14 +6,14 @@ import { handleSetup } from '../commands/setup.js';
 import { handleAvailability } from '../commands/availability.js';
 import { handleTeam, handleTc, handleTeamButton } from '../commands/team.js';
 import { handleAnnouncement } from '../commands/announce.js';
-import { handleGame, handleSchedule, handleTimezone, handleWeek } from '../commands/schedule.js';
+import { handleAddGame, handleDeleteGame, handleGame, handleSchedule, handleSetCode, handleTimezone, handleWeek, } from '../commands/schedule.js';
 import { handleBuilds, handleDisconnect, handleRule, handleRules } from '../commands/rules.js';
 import { renderError } from '../renderers/design.js';
 import { waitlistPrompt, handleButton } from '../interactions/buttons.js';
 import { handleManagementModal, handleRegistrationModal } from '../interactions/modals.js';
 import { handleSelectMenu } from '../interactions/select-menus.js';
 import { handleAvailabilityReminderButton, handleWeeklyAvailabilityButton, handleWeeklyAvailabilitySelect, } from '../interactions/weekly-availability.js';
-import { handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handlePlayerGameButton, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
+import { handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handlePlayerGameButton, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
 import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
 import { AppError, publicErrorMessage } from '../utils/errors.js';
@@ -55,6 +55,14 @@ export async function routeInteraction(interaction, context) {
                 await handleTimezone(interaction, context);
             else if (interaction.commandName === 'week')
                 await handleWeek(interaction, context);
+            else if (interaction.commandName === 'add-game')
+                await handleAddGame(interaction, context);
+            else if (interaction.commandName === 'set-code')
+                await handleSetCode(interaction, context);
+            else if (interaction.commandName === 'delete-game')
+                await handleDeleteGame(interaction, context);
+            else if (interaction.commandName === 'games')
+                await handleSchedule(interaction, context);
             else if (interaction.commandName === 'schedule')
                 await handleSchedule(interaction, context);
             else if (interaction.commandName === 'game')
@@ -99,6 +107,12 @@ export async function routeInteraction(interaction, context) {
                 await handleGameStatusSelect(interaction, context, parsed);
             else
                 await handleSelectMenu(interaction, context, parsed);
+            return;
+        }
+        if (interaction.isUserSelectMenu()) {
+            const parsed = parseCustomId(interaction.customId);
+            if (parsed.action === 'lineup-user-select')
+                await handleLineupUserSelect(interaction, context, parsed);
             return;
         }
         if (interaction.isModalSubmit()) {

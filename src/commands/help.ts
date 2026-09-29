@@ -28,29 +28,29 @@ export async function handleHelp(
         )
         .addFields(
           {
-            name: '1 • SCOUTING SESSIONS',
+            name: '1 • ADDING GAMES (SUPER SIMPLE)',
             value:
-              '`/scout create` — Create a new scouting session (One-side or 6v6).\n`/scout post` — Publish scouting post to a channel.\n`/scout list` — Manage upcoming sessions.',
+              '`/add-game` — Add a game with opponent, date, time (e.g. `/add-game opponent:Bruins date:Sunday time:8:30 PM`). No setup required! Automatically posts to `#team-availability`.\n`/set-code` — Set server name and game code for upcoming games.\n`/games` or `/schedule` — View weekly schedule and lineup cards.\n`/delete-game` — Remove any game from the schedule.',
           },
           {
-            name: '2 • LINEUP & WAITLIST CONTROLS',
+            name: '2 • LINEUP & ROSTER CONTROLS',
             value:
-              'Use interactive post buttons to Lock/Unlock signups, assign players, or clear slots.\nManagement can override position eligibility or schedule conflicts.',
+              'Click **Build Lineup** to select players directly from Discord or registered team roster.\nClick **Confirm Lineup** when ready — confirmed players receive reminders and can check `/game`.',
           },
           {
-            name: '3 • WEEKLY AVAILABILITY',
+            name: '3 • SCOUTING SESSIONS',
             value:
-              '`/availability open` / `lock` / `close` — Manage submission status.\n`/availability missing` — View players who haven’t submitted availability.',
+              '`/scout create` — Create a new scouting session (One-side or 6v6).\n`/scout panel` — Master management control panel.\n`/scouting` — Browse upcoming sessions.',
           },
           {
             name: '4 • TEAM & PLAYER MANAGEMENT',
             value:
-              '`/player` — Search players, view activity logs, and edit status (UNSCOUTED, SHORTLIST, SCOUTED, etc.).\n`/team` & `/tc` — Manage roster and Training Camp players.',
+              '`/player` — Search players, view activity logs, and edit status.\n`/team` & `/tc` — Manage roster and Training Camp players.',
           },
           {
             name: '5 • SERVER CONFIGURATION',
             value:
-              '`/setup` — Set up management roles, default scouting channels, and settings.\n`/timezone` — Configure server timezone.\n`/rules` — Manage rule documents for `/builds` and `/disconnect`.',
+              '`/setup` — Configure management roles, channels, and defaults.\n`/rules` — Manage rule documents for `/builds` and `/disconnect`.',
           },
         )
     : brandedEmbed()

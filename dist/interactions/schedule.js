@@ -1,4 +1,5 @@
-import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, } from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, } from 'discord.js';
+import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
 import { DateTime } from 'luxon';
 import { localWeekday } from '../domain/schedule-time.js';
 import { publishAvailability } from '../commands/availability.js';
@@ -127,21 +128,29 @@ export async function handleLineupPositionSelect(interaction, context) {
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
     await requireManagement(interaction, context);
     const position = interaction.values[0];
-    const candidates = await context.schedule.lineupCandidates(interaction.guildId, interaction.customId.split(':')[2], position);
-    if (!candidates.length)
-        throw new AppError('NOT_FOUND', `No eligible ${position} players were found.`);
     const gameId = interaction.customId.split(':')[2];
-    const menu = new StringSelectMenuBuilder()
-        .setCustomId(customId('lineup-player-select', gameId, position))
-        .setPlaceholder(`Select ${position}`)
-        .addOptions({ label: `Clear ${position}`, value: 'CLEAR', description: 'Remove the current assignment' }, ...candidates.slice(0, 24).map(({ player, availability }) => ({
-        label: player.eaTag.slice(0, 100),
-        value: player.id,
-        description: `${availability} • ${player.teamStatus}`.slice(0, 100),
-    })));
+    const candidates = await context.schedule.lineupCandidates(interaction.guildId, gameId, position);
+    const rows = [];
+    if (candidates.length > 0) {
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId(customId('lineup-player-select', gameId, position))
+            .setPlaceholder(`Select ${position} from registered players`)
+            .addOptions({ label: `Clear ${position}`, value: 'CLEAR', description: 'Remove the current assignment' }, ...candidates.slice(0, 24).map(({ player, availability }) => ({
+            label: player.eaTag.slice(0, 100),
+            value: player.id,
+            description: `${availability} • ${player.teamStatus}`.slice(0, 100),
+        })));
+        rows.push(new ActionRowBuilder().addComponents(menu));
+    }
+    const userMenu = new UserSelectMenuBuilder()
+        .setCustomId(customId('lineup-user-select', gameId, position))
+        .setPlaceholder(`Or pick team player for ${position} from Discord`)
+        .setMinValues(1)
+        .setMaxValues(1);
+    rows.push(new ActionRowBuilder().addComponents(userMenu));
     await interaction.update({
-        content: `Select **${position}**. Available players are listed first.`,
-        components: [new ActionRowBuilder().addComponents(menu)],
+        content: `Select **${position}**. Pick from registered players below, or select any team player directly from Discord:`,
+        components: rows,
     });
 }
 export async function handleLineupPlayerSelect(interaction, context, parsed) {
@@ -156,6 +165,25 @@ export async function handleLineupPlayerSelect(interaction, context, parsed) {
             await context.notifications.lineupRemoved(removed.player.discordUserId, await context.schedule.game(parsed.entityId), position);
     }
     else {
+        if (interaction.guild) {
+            const config = await context.config.get(interaction.guildId);
+            const requiredRole = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+            const playerToAssign = await context.prisma.player.findUnique({
+                where: { id: interaction.values[0] },
+            });
+            if (playerToAssign) {
+                try {
+                    const member = await interaction.guild.members.fetch(playerToAssign.discordUserId);
+                    if (!member.roles.cache.has(requiredRole)) {
+                        throw new AppError('NOT_ALLOWED', `That player does not have the team role (<@&${requiredRole}>). Only players with this role can be selected.`);
+                    }
+                }
+                catch (err) {
+                    if (err instanceof AppError)
+                        throw err;
+                }
+            }
+        }
         const result = await context.schedule.assignLineupPosition({
             guildId: interaction.guildId,
             gameId: parsed.entityId,
@@ -175,8 +203,61 @@ export async function handleLineupPlayerSelect(interaction, context, parsed) {
         throw new AppError('NOT_FOUND', 'Game not found.');
     await interaction.update({ content: `Lineup updated.${warning}`, ...renderGame(game, true) });
 }
+export async function handleLineupUserSelect(interaction, context, parsed) {
+    if (!interaction.guildId || !parsed.value || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await requireManagement(interaction, context);
+    const position = parsed.value;
+    const targetUserId = interaction.values[0];
+    const member = await interaction.guild.members.fetch(targetUserId);
+    const config = await context.config.get(interaction.guildId);
+    const requiredRole = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+    if (!member.roles.cache.has(requiredRole)) {
+        throw new AppError('NOT_ALLOWED', `That user does not have the team role (<@&${requiredRole}>). Only players with the team role can be selected.`);
+    }
+    const player = await context.players.byDiscordId(interaction.guildId, member.user.id, member.displayName ?? member.user.username, member.user.displayAvatarURL());
+    if (player.teamStatus !== 'ROSTER') {
+        await context.prisma.player.update({
+            where: { id: player.id },
+            data: {
+                teamStatus: 'ROSTER',
+                registered: true,
+                signupPositions: Array.from(new Set([...player.signupPositions, position])),
+            },
+        });
+    }
+    const result = await context.schedule.assignLineupPosition({
+        guildId: interaction.guildId,
+        gameId: parsed.entityId,
+        playerId: player.id,
+        position,
+        actorDiscordId: interaction.user.id,
+    });
+    if (result.removed?.confirmed)
+        await context.notifications.lineupRemoved(result.removed.player.discordUserId, await context.schedule.game(parsed.entityId), position);
+    if (result.movedConfirmed)
+        await context.notifications.lineupRemoved(result.movedConfirmed.player.discordUserId, await context.schedule.game(parsed.entityId), result.movedConfirmed.position);
+    const game = await context.schedule.game(parsed.entityId);
+    if (!game)
+        throw new AppError('NOT_FOUND', 'Game not found.');
+    await interaction.update({
+        content: `Lineup updated: added <@${member.user.id}> at **${position}**.`,
+        ...renderGame(game, true),
+    });
+}
 export async function handleGameButton(interaction, context, parsed) {
     await requireManagement(interaction, context);
+    if (parsed.value === 'delete') {
+        const updatedWeek = await context.schedule.deleteGame(interaction.guildId, parsed.entityId, interaction.user.id);
+        if (updatedWeek) {
+            await refreshWeekPost(interaction, updatedWeek);
+        }
+        await interaction.reply({
+            ephemeral: true,
+            embeds: [renderSuccess('Game Deleted', 'The game was removed from the schedule.')],
+        });
+        return;
+    }
     const game = await context.schedule.game(parsed.entityId);
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
@@ -227,6 +308,9 @@ export async function handleGameCodeModal(interaction, context, parsed) {
                 delivered.push(assignment.id);
         }
     await context.schedule.markGameInfoNotified(delivered);
+    const week = await context.schedule.getWeek(game.weekId);
+    if (week)
+        await refreshWeekPost(interaction, week);
     await interaction.reply({
         ephemeral: true,
         embeds: [

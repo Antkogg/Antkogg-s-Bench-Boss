@@ -22,6 +22,7 @@ const actionSchema = z.enum([
     'lineup-action',
     'lineup-position-select',
     'lineup-player-select',
+    'lineup-user-select',
     'game-action',
     'modal-game-code',
     'game-status-select',

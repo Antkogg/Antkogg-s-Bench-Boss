@@ -90,6 +90,25 @@ export class NotificationService {
             ],
         }, 'regular-season lineup confirmation');
     }
+    async gameReminder(userId, game, position) {
+        return this.send(userId, {
+            embeds: [
+                brandedEmbed()
+                    .setTitle('🏒 GAME REMINDER • 3 HOURS TO GAME')
+                    .setDescription(`You are confirmed at **${position}** ${game.homeAway === 'AWAY' ? '@' : 'vs'} **${game.opponentNameSnapshot ?? 'TBD'}**.\n\n` +
+                    `**Game Time:** ${discordTimestamp(game.scheduledAtUtc, 'F')} (${discordTimestamp(game.scheduledAtUtc, 'R')})\n` +
+                    `**Server:** ${game.gameServer ?? 'Not set yet'}\n` +
+                    `**Code:** ${game.gameCode ?? 'Not set yet'}\n\n` +
+                    `Be ready 10-15 minutes prior to game time. Use \`/game\` anytime for live updates.`),
+            ],
+            components: [
+                new ActionRowBuilder().addComponents(new ButtonBuilder()
+                    .setCustomId(customId('player-game', game.id))
+                    .setLabel('View Game Details')
+                    .setStyle(ButtonStyle.Primary)),
+            ],
+        }, 'regular-season 3-hour game reminder');
+    }
     async lineupRemoved(userId, game, position) {
         if (!game)
             return false;

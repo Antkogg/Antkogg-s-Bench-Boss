@@ -57,27 +57,65 @@ export function renderManagementWeek(week) {
     return { embeds: [embed], components: active.length ? [gameSelect, controls] : [controls] };
 }
 export function renderPlayerWeek(week, playerId) {
-    const embed = brandedEmbed()
+    const games = week.games.filter((g) => g.status !== 'CANCELLED');
+    const embeds = [];
+    const headerEmbed = brandedEmbed()
         .setTitle(`${week.label.toUpperCase()} SCHEDULE`)
         .setDescription(`Times display in your Discord timezone. Availability is **${week.status}**.`);
-    for (const group of groupGamesByGuildDay(week.games.filter((g) => g.status !== 'CANCELLED'), week.guildConfig.timezone)) {
-        embed.addFields({
-            name: group.day.toUpperCase(),
-            value: group.games
-                .map((game) => {
-                const lineup = game.lineup?.find((entry) => entry.playerId === playerId && entry.confirmed);
-                const response = game.responses?.find((entry) => entry.submission.playerId === playerId);
-                const state = lineup
-                    ? `CONFIRMED • ${lineup.position}`
-                    : response?.status === 'AVAILABLE'
-                        ? 'AVAILABLE • NOT SELECTED'
-                        : (response?.status ?? 'NO RESPONSE');
-                return `**${gameOpponentLabel(game)}** • ${discordTimestamp(game.scheduledAtUtc, 'F')}\n${state}`;
-            })
-                .join('\n\n'),
-        });
+    if (!games.length) {
+        headerEmbed.addFields({ name: 'GAMES', value: 'No games scheduled for this week.' });
+        embeds.push(headerEmbed);
     }
-    return { embeds: [embed], components: [] };
+    else {
+        embeds.push(headerEmbed);
+        const displayGames = games.slice(0, 9);
+        displayGames.forEach((game, index) => {
+            const lineup = game.lineup?.find((entry) => entry.playerId === playerId && entry.confirmed);
+            const response = game.responses?.find((entry) => entry.submission.playerId === playerId);
+            const userState = lineup
+                ? `🟢 **CONFIRMED (${lineup.position})**`
+                : response?.status === 'AVAILABLE'
+                    ? '🔵 **AVAILABLE (Pending Lineup)**'
+                    : response?.status === 'UNAVAILABLE'
+                        ? '🔴 **UNAVAILABLE**'
+                        : '⚪ **NO RESPONSE**';
+            const gameEmbed = brandedEmbed()
+                .setTitle(`GAME ${index + 1}: ${gameOpponentLabel(game).toUpperCase()}`)
+                .setDescription(`📅 **Time:** ${discordTimestamp(game.scheduledAtUtc, 'F')} (${discordTimestamp(game.scheduledAtUtc, 'R')})\n` +
+                `**Status:** ${game.status}\n` +
+                `**Your Status:** ${userState}`);
+            const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
+            const lineupLines = positions.map((pos) => {
+                const assignment = game.lineup?.find((entry) => entry.position === pos);
+                if (assignment) {
+                    const badge = assignment.confirmed ? '✅' : '▫️';
+                    const isYou = assignment.playerId === playerId ? ' *(You)*' : '';
+                    return `**${pos}:** ${badge} <@${assignment.player.discordUserId}>${isYou}`;
+                }
+                return `**${pos}:** *Open*`;
+            });
+            gameEmbed.addFields({
+                name: 'LINEUP',
+                value: lineupLines.join('\n'),
+            });
+            if ((game.gameServer || game.gameCode) && lineup) {
+                gameEmbed.addFields({
+                    name: 'SERVER / CODE',
+                    value: `**Server:** ${game.gameServer ?? 'Not set'}\n**Code:** ${game.gameCode ?? 'Not set'}`,
+                });
+            }
+            embeds.push(gameEmbed);
+        });
+        if (games.length > 9) {
+            embeds.push(brandedEmbed()
+                .setTitle('ADDITIONAL GAMES')
+                .setDescription(games
+                .slice(9)
+                .map((g, i) => `**${i + 10}. ${gameOpponentLabel(g)}** • ${discordTimestamp(g.scheduledAtUtc, 'F')}`)
+                .join('\n')));
+        }
+    }
+    return { embeds, components: [] };
 }
 export function renderGame(game, management, playerId) {
     const confirmed = game.lineup?.filter((entry) => entry.confirmed) ?? [];
