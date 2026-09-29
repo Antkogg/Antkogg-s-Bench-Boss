@@ -197,8 +197,8 @@ export function renderIndividualGamePost(game, gameNumber) {
     const homeAwaySymbol = game.homeAway === 'AWAY' ? '@' : 'vs';
     const opponentName = game.opponentNameSnapshot ?? 'Opponent';
     const venueDetail = game.homeAway === 'AWAY'
-        ? `✈️ **Away Game** • Boston University @ ${opponentName}`
-        : `🏠 **Home Game** • Boston University vs ${opponentName}`;
+        ? `Away • BU @ ${opponentName}`
+        : `Home • BU vs ${opponentName}`;
     const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
     const lineupMap = new Map();
     for (const pos of positions) {
@@ -225,16 +225,16 @@ export function renderIndividualGamePost(game, gameNumber) {
         ? `**Server:** \`${game.gameServer ?? 'TBD'}\`  ┃  **Code:** \`${game.gameCode ?? 'TBD'}\``
         : '`TBD`';
     const embed = brandedEmbed()
-        .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
-        .setDescription(`⏰ **Puck Drop:** <t:${timeUnix}:t> • 📅 **Date:** <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
-        `🏟️ **Matchup:** ${venueDetail}\n` +
-        `🎮 **Server & Code:** ${serverCodeValue}`)
+        .setTitle(`GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
+        .setDescription(`**Puck Drop:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
+        `**Matchup:** ${venueDetail}\n` +
+        `**Server & Code:** ${serverCodeValue}`)
         .addFields({
-        name: '🏒 Starting Forwards',
+        name: 'Starting Forwards',
         value: forwardsText,
         inline: true,
     }, {
-        name: '🛡️ Defense & Goalie',
+        name: 'Defense & Goalie',
         value: defenseText,
         inline: true,
     }, {
@@ -265,10 +265,10 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setLabel('🔴 Out')
         .setStyle(ButtonStyle.Danger), new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'code'))
-        .setLabel('🎮 Set Code')
+        .setLabel('Set Code')
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-        .setLabel('📋 Set Lineup')
+        .setLabel('Set Lineup')
         .setStyle(ButtonStyle.Primary));
     return {
         embeds: [embed],

@@ -295,8 +295,8 @@ export function renderIndividualGamePost(
   const opponentName = game.opponentNameSnapshot ?? 'Opponent';
   const venueDetail =
     game.homeAway === 'AWAY'
-      ? `✈️ **Away Game** • Boston University @ ${opponentName}`
-      : `🏠 **Home Game** • Boston University vs ${opponentName}`;
+      ? `Away • BU @ ${opponentName}`
+      : `Home • BU vs ${opponentName}`;
 
   const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const;
   const lineupMap = new Map<string, string>();
@@ -333,20 +333,20 @@ export function renderIndividualGamePost(
       : '`TBD`';
 
   const embed = brandedEmbed()
-    .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
+    .setTitle(`GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
     .setDescription(
-      `⏰ **Puck Drop:** <t:${timeUnix}:t> • 📅 **Date:** <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
-      `🏟️ **Matchup:** ${venueDetail}\n` +
-      `🎮 **Server & Code:** ${serverCodeValue}`
+      `**Puck Drop:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
+      `**Matchup:** ${venueDetail}\n` +
+      `**Server & Code:** ${serverCodeValue}`
     )
     .addFields(
       {
-        name: '🏒 Starting Forwards',
+        name: 'Starting Forwards',
         value: forwardsText,
         inline: true,
       },
       {
-        name: '🛡️ Defense & Goalie',
+        name: 'Defense & Goalie',
         value: defenseText,
         inline: true,
       },
@@ -386,11 +386,11 @@ export function renderIndividualGamePost(
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))
-      .setLabel('🎮 Set Code')
+      .setLabel('Set Code')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-      .setLabel('📋 Set Lineup')
+      .setLabel('Set Lineup')
       .setStyle(ButtonStyle.Primary),
   );
 
