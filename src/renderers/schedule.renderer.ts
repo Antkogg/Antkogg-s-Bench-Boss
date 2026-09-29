@@ -305,7 +305,6 @@ export function renderIndividualGamePost(
   const locationSub = isAway ? `@ ${opponentFullName}` : `vs ${opponentFullName}`;
 
   const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
-  const dayNamePlural = `${dayName}s`;
 
   const formatSlot = (pos: 'LW' | 'C' | 'RW' | 'LD' | 'RD' | 'G') => {
     const assignment = game.lineup?.find((l) => l.position === pos);
@@ -407,8 +406,12 @@ export function renderIndividualGamePost(
 
   const secondaryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(customId('game-day-avail', game.id, 'prompt'))
-      .setLabel(`📅 ${dayNamePlural}`)
+      .setCustomId(customId('game-day-avail', game.id, 'available'))
+      .setLabel(`🗓 All ${dayName}`)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+      .setLabel(`🚫 No ${dayName}`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))

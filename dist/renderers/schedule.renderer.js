@@ -205,7 +205,6 @@ export function renderIndividualGamePost(game, gameNumber) {
     const locationTitle = isAway ? '✈️ AWAY GAME' : '🏠 HOME GAME';
     const locationSub = isAway ? `@ ${opponentFullName}` : `vs ${opponentFullName}`;
     const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
-    const dayNamePlural = `${dayName}s`;
     const formatSlot = (pos) => {
         const assignment = game.lineup?.find((l) => l.position === pos);
         if (assignment) {
@@ -281,8 +280,11 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setLabel('❌ Out')
         .setStyle(ButtonStyle.Danger));
     const secondaryRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('game-day-avail', game.id, 'prompt'))
-        .setLabel(`📅 ${dayNamePlural}`)
+        .setCustomId(customId('game-day-avail', game.id, 'available'))
+        .setLabel(`🗓 All ${dayName}`)
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+        .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+        .setLabel(`🚫 No ${dayName}`)
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'code'))
         .setLabel('🎮 Code')
