@@ -301,8 +301,7 @@ export function renderIndividualGamePost(
     ? `Boston University @ ${opponentFullName}`
     : `Boston University vs ${opponentFullName}`;
 
-  const locationTitle = isAway ? '✈️ AWAY GAME' : '🏠 HOME GAME';
-  const locationSub = isAway ? `@ ${opponentFullName}` : `vs ${opponentFullName}`;
+  const homeAwayTag = isAway ? 'AWAY @' : 'HOME vs';
 
   const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
 
@@ -341,11 +340,9 @@ export function renderIndividualGamePost(
 
   const embed = brandedEmbed(0xCC0000)
     .setAuthor(null)
-    .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${opponentShortName}`)
+    .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${homeAwayTag} ${opponentShortName}`)
     .setDescription(
-      `${matchupLine}\n\n` +
-      `**${locationTitle}**\n` +
-      `${locationSub}\n\n` +
+      `**${matchupLine}**\n\n` +
       `📅 <t:${timeUnix}:D>\n` +
       `🕖 <t:${timeUnix}:t>`
     )
