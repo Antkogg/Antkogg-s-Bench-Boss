@@ -194,47 +194,47 @@ export function renderGame(game, management, playerId) {
 }
 export function renderIndividualGamePost(game, gameNumber) {
     const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
-    const homeAwaySymbol = game.homeAway === 'AWAY' ? '@' : 'vs';
-    const opponentName = game.opponentNameSnapshot ?? 'Opponent';
-    const venueDetail = game.homeAway === 'AWAY'
-        ? `Away • BU @ ${opponentName}`
-        : `Home • BU vs ${opponentName}`;
-    const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
-    const lineupMap = new Map();
-    for (const pos of positions) {
+    const isAway = game.homeAway === 'AWAY';
+    const matchupSymbol = isAway ? '@' : 'VS';
+    const opponentName = (game.opponentNameSnapshot ?? 'Opponent').toUpperCase();
+    const venueLine = isAway
+        ? `✈️ **Away Game** ┃ BU @ ${opponentName}`
+        : `🏠 **Home Game** ┃ BU vs ${opponentName}`;
+    const serverCodeValue = game.gameServer || game.gameCode
+        ? `\`${game.gameServer ?? 'TBD'}\` ┃ **Code:** \`${game.gameCode ?? 'TBD'}\``
+        : '`TBD`';
+    const formatSlot = (pos) => {
         const assignment = game.lineup?.find((l) => l.position === pos);
-        lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '`Open`');
-    }
-    const forwardsText = `**LW:** ${lineupMap.get('LW')}\n` +
-        `**C:**  ${lineupMap.get('C')}\n` +
-        `**RW:** ${lineupMap.get('RW')}`;
-    const defenseText = `**LD:** ${lineupMap.get('LD')}\n` +
-        `**RD:** ${lineupMap.get('RD')}\n` +
-        `**G:**  ${lineupMap.get('G')}`;
+        const pad = pos.length === 1 ? ` ${pos}` : pos;
+        if (assignment) {
+            const badge = assignment.confirmed ? '✅' : '▫️';
+            return `\`${pad}\` ${badge} <@${assignment.player.discordUserId}>`;
+        }
+        return `\`${pad}\` \` OPEN \``;
+    };
+    const forwardsText = `${formatSlot('LW')}\n${formatSlot('C')}\n${formatSlot('RW')}`;
+    const defenseText = `${formatSlot('LD')}\n${formatSlot('RD')}\n${formatSlot('G')}`;
     const availablePlayers = (game.responses ?? [])
         .filter((r) => r.status === 'AVAILABLE')
         .map((r) => {
         const p = r.submission.player;
         const pos = p.signupPositions?.length ? ` *(${p.signupPositions.join('/')})*` : '';
-        return `<@${p.discordUserId}>${pos}`;
+        return `• <@${p.discordUserId}>${pos}`;
     });
     const outPlayers = (game.responses ?? [])
         .filter((r) => r.status === 'UNAVAILABLE')
-        .map((r) => `<@${r.submission.player.discordUserId}>`);
-    const serverCodeValue = game.gameServer || game.gameCode
-        ? `**Server:** \`${game.gameServer ?? 'TBD'}\`  ┃  **Code:** \`${game.gameCode ?? 'TBD'}\``
-        : '`TBD`';
-    const embed = brandedEmbed()
-        .setTitle(`GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
-        .setDescription(`**Puck Drop:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
-        `**Matchup:** ${venueDetail}\n` +
-        `**Server & Code:** ${serverCodeValue}`)
+        .map((r) => `• <@${r.submission.player.discordUserId}>`);
+    const embed = brandedEmbed(0xCC0000)
+        .setTitle(`🏒 GAME ${gameNumber ?? 1} ┃ ${matchupSymbol} ${opponentName}`)
+        .setDescription(`> ⏰ **Puck Drop:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
+        `> 🏟️ **Venue:** ${venueLine}\n` +
+        `> 🎮 **Server & Code:** ${serverCodeValue}`)
         .addFields({
-        name: 'Starting Forwards',
+        name: '⚔️ FORWARDS',
         value: forwardsText,
         inline: true,
     }, {
-        name: 'Defense & Goalie',
+        name: '🛡️ DEFENSE & GOALIE',
         value: defenseText,
         inline: true,
     }, {
@@ -242,11 +242,11 @@ export function renderIndividualGamePost(game, gameNumber) {
         value: '\u200B',
         inline: true,
     }, {
-        name: `🟢 Available (${availablePlayers.length})`,
+        name: `🟢 AVAILABLE (${availablePlayers.length})`,
         value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None yet*',
         inline: true,
     }, {
-        name: `🔴 Out (${outPlayers.length})`,
+        name: `🔴 OUT (${outPlayers.length})`,
         value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
         inline: true,
     }, {
@@ -255,7 +255,7 @@ export function renderIndividualGamePost(game, gameNumber) {
         inline: true,
     })
         .setFooter({
-        text: `Game #${gameNumber ?? 1} • S55 Boston University`,
+        text: `S55 Boston University • Game ${gameNumber ?? 1} of 9`,
     });
     const buttonRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId(customId('game-avail', game.id, 'available'))
@@ -265,10 +265,10 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setLabel('🔴 Out')
         .setStyle(ButtonStyle.Danger), new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'code'))
-        .setLabel('Set Code')
+        .setLabel('🎮 Set Code')
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-        .setLabel('Set Lineup')
+        .setLabel('📋 Set Lineup')
         .setStyle(ButtonStyle.Primary));
     return {
         embeds: [embed],
