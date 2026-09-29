@@ -343,7 +343,7 @@ export function renderIndividualGamePost(
     .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${homeAwayTag} ${opponentShortName}`)
     .setDescription(
       `**${matchupLine}**\n\n` +
-      `📅 <t:${timeUnix}:D>\n` +
+      `📅 ${dayName}, <t:${timeUnix}:D>\n` +
       `🕖 <t:${timeUnix}:t>`
     )
     .addFields(
