@@ -300,6 +300,24 @@ export const commandDefinitions = [
         .addStringOption((option) => option.setName('server').setDescription('Optional server name (e.g. East Coast 1)'))
         .addStringOption((option) => option.setName('code').setDescription('Optional game password/code')),
     new SlashCommandBuilder()
+        .setName('add-games')
+        .setDescription('Bulk add multiple games at once (paste your schedule)')
+        .addStringOption((option) => option
+        .setName('schedule')
+        .setDescription('Paste games: e.g. Sunday 8:30 PM vs Bruins / Monday 9:00 PM @ Rangers')
+        .setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('post-week')
+        .setDescription('Post official LG week schedule and availability board for S55 BU')
+        .addStringOption((option) => option
+        .setName('week')
+        .setDescription('Select week (Week 2, Week 3, Week 4, Week 5, Week 6)')
+        .addChoices({ name: 'Week 2 (Oct 04 - Oct 06)', value: 'week-2' }, { name: 'Week 3 (Oct 11 - Oct 13)', value: 'week-3' }, { name: 'Week 4 (Oct 18 - Oct 20)', value: 'week-4' }, { name: 'Week 5 (Oct 25 - Oct 27)', value: 'week-5' }, { name: 'Week 6 (Nov 01 - Nov 03)', value: 'week-6' }, { name: 'Week 7 (Nov 08 - Nov 10)', value: 'week-7' }, { name: 'Week 8 (Nov 15 - Nov 17)', value: 'week-8' })),
+    new SlashCommandBuilder()
+        .setName('lineup')
+        .setDescription('Set starters for a game from available players')
+        .addStringOption((option) => option.setName('game').setDescription('Game number (1, 2...) or ID (leave blank to choose)')),
+    new SlashCommandBuilder()
         .setName('set-code')
         .setDescription('Set or update server and password code for a game')
         .addStringOption((option) => option.setName('server').setDescription('Server name (e.g. East Coast 1)').setRequired(true))

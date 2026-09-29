@@ -56,7 +56,7 @@ describe("Antkogg's LG Assistant expansion", () => {
         },
       ],
     } as unknown as SeasonWeek & { games: WeeklyGame[] };
-    expect(renderWeeklyAvailability(week).components).toHaveLength(1);
+    expect(renderWeeklyAvailability(week).components).toHaveLength(2);
     expect(renderWeeklyAvailability({ ...week, status: 'LOCKED' }).components).toHaveLength(0);
   });
 

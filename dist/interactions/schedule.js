@@ -5,6 +5,7 @@ import { localWeekday } from '../domain/schedule-time.js';
 import { publishAvailability } from '../commands/availability.js';
 import { requireManagement } from '../commands/authorization.js';
 import { renderGame, renderManagementWeek } from '../renderers/schedule.renderer.js';
+import { parseScheduleLine, syncAvailabilityPost } from '../commands/schedule.js';
 import { renderSuccess } from '../renderers/design.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { customId } from '../utils/custom-id.js';
@@ -14,6 +15,19 @@ export async function handleWeekButton(interaction, context, parsed) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
     await requireManagement(interaction, context);
+    if (parsed.value === 'quick-add') {
+        const input = new TextInputBuilder()
+            .setCustomId('game')
+            .setLabel('Game Details')
+            .setPlaceholder('e.g. MON 9:00 PM vs Bruins or 2026-10-05 21:00 vs Bruins')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        await interaction.showModal(new ModalBuilder()
+            .setCustomId(customId('modal-quick-game', parsed.entityId))
+            .setTitle('Add League Game')
+            .addComponents(new ActionRowBuilder().addComponents(input)));
+        return;
+    }
     if (parsed.value === 'publish') {
         const channelId = await publishAvailability(interaction, context, parsed.entityId);
         await interaction.reply({
@@ -87,6 +101,35 @@ export async function handleWeekDayModal(interaction, context, parsed) {
     await refreshWeekPost(interaction, week);
     await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
 }
+export async function handleQuickGameModal(interaction, context, _parsed) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await requireManagement(interaction, context);
+    const rawInput = interaction.fields.getTextInputValue('game').trim();
+    const parsedGame = parseScheduleLine(rawInput);
+    if (!parsedGame) {
+        throw new AppError('INVALID_INPUT', `Could not understand format in: "${rawInput}".\nTry: "MON 9:00 PM vs Bruins" or "2026-10-05 21:00 vs Bruins"`);
+    }
+    await context.schedule.addGame({
+        guildId: interaction.guildId,
+        opponent: parsedGame.opponent,
+        date: parsedGame.date,
+        time: parsedGame.time,
+        homeAway: parsedGame.homeAway,
+        actorDiscordId: interaction.user.id,
+    });
+    const week = await context.schedule.currentWeek(interaction.guildId);
+    if (week) {
+        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
+    await interaction.reply({
+        ephemeral: true,
+        embeds: [
+            renderSuccess('Game Added', `Added **${parsedGame.homeAway === 'AWAY' ? '@' : 'vs'} ${parsedGame.opponent}** for **${parsedGame.date} at ${parsedGame.time}**.\n` +
+                'The `#team-availability` board has been refreshed!'),
+        ],
+    });
+}
 export async function handleWeekGameSelect(interaction, context) {
     await requireManagement(interaction, context);
     const game = await context.schedule.game(interaction.values[0]);
@@ -110,6 +153,10 @@ export async function handleLineupButton(interaction, context, parsed) {
                 delivered.push(assignment.id);
         }
         await context.schedule.markConfirmationNotified(delivered);
+        const week = await context.schedule.getWeek(game.weekId);
+        if (week) {
+            await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+        }
         await interaction.update(renderGame(game, true));
         return;
     }
@@ -167,15 +214,21 @@ export async function handleLineupPlayerSelect(interaction, context, parsed) {
     else {
         if (interaction.guild) {
             const config = await context.config.get(interaction.guildId);
-            const requiredRole = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+            const configuredRoleId = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+            const s55Role = interaction.guild.roles.cache.find((r) => r.id === configuredRoleId ||
+                r.name.toLowerCase().includes('s55 bu') ||
+                r.name.toLowerCase().includes('roster'));
+            const requiredRoleId = s55Role?.id ?? configuredRoleId;
             const playerToAssign = await context.prisma.player.findUnique({
                 where: { id: interaction.values[0] },
             });
             if (playerToAssign) {
                 try {
                     const member = await interaction.guild.members.fetch(playerToAssign.discordUserId);
-                    if (!member.roles.cache.has(requiredRole)) {
-                        throw new AppError('NOT_ALLOWED', `That player does not have the team role (<@&${requiredRole}>). Only players with this role can be selected.`);
+                    const hasRole = member.roles.cache.has(requiredRoleId) ||
+                        member.roles.cache.some((r) => r.name.toLowerCase().includes('s55 bu'));
+                    if (!hasRole) {
+                        throw new AppError('NOT_ALLOWED', `That player does not have the team role (S55 BU). Only players with this role can be selected.`);
                     }
                 }
                 catch (err) {
@@ -201,6 +254,10 @@ export async function handleLineupPlayerSelect(interaction, context, parsed) {
     const game = await context.schedule.game(parsed.entityId);
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
+    const week = await context.schedule.getWeek(game.weekId);
+    if (week && interaction.guildId) {
+        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
     await interaction.update({ content: `Lineup updated.${warning}`, ...renderGame(game, true) });
 }
 export async function handleLineupUserSelect(interaction, context, parsed) {
@@ -211,9 +268,15 @@ export async function handleLineupUserSelect(interaction, context, parsed) {
     const targetUserId = interaction.values[0];
     const member = await interaction.guild.members.fetch(targetUserId);
     const config = await context.config.get(interaction.guildId);
-    const requiredRole = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
-    if (!member.roles.cache.has(requiredRole)) {
-        throw new AppError('NOT_ALLOWED', `That user does not have the team role (<@&${requiredRole}>). Only players with the team role can be selected.`);
+    const configuredRoleId = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+    const s55Role = interaction.guild.roles.cache.find((r) => r.id === configuredRoleId ||
+        r.name.toLowerCase().includes('s55 bu') ||
+        r.name.toLowerCase().includes('roster'));
+    const hasRole = member.roles.cache.has(configuredRoleId) ||
+        (s55Role && member.roles.cache.has(s55Role.id)) ||
+        member.roles.cache.some((r) => r.name.toLowerCase().includes('s55 bu'));
+    if (!hasRole) {
+        throw new AppError('NOT_ALLOWED', `That user does not have the team role (S55 BU). Only players with the team role can be selected.`);
     }
     const player = await context.players.byDiscordId(interaction.guildId, member.user.id, member.displayName ?? member.user.username, member.user.displayAvatarURL());
     if (player.teamStatus !== 'ROSTER') {
@@ -240,6 +303,10 @@ export async function handleLineupUserSelect(interaction, context, parsed) {
     const game = await context.schedule.game(parsed.entityId);
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
+    const week = await context.schedule.getWeek(game.weekId);
+    if (week && interaction.guildId) {
+        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
     await interaction.update({
         content: `Lineup updated: added <@${member.user.id}> at **${position}**.`,
         ...renderGame(game, true),
@@ -251,6 +318,7 @@ export async function handleGameButton(interaction, context, parsed) {
         const updatedWeek = await context.schedule.deleteGame(interaction.guildId, parsed.entityId, interaction.user.id);
         if (updatedWeek) {
             await refreshWeekPost(interaction, updatedWeek);
+            await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
         }
         await interaction.reply({
             ephemeral: true,

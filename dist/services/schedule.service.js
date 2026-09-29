@@ -259,7 +259,7 @@ export class ScheduleService {
     }
     async addGame(input) {
         const config = await this.ensureConfig(input.guildId);
-        const timezone = await this.managementTimezone(input.guildId, input.actorDiscordId);
+        const timezone = input.timezone ?? (await this.managementTimezone(input.guildId, input.actorDiscordId));
         const isoDate = parseFlexibleDate(input.date, timezone);
         const { hours, minutes } = parseFlexibleTime(input.time);
         const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;

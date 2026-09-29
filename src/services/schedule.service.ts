@@ -360,12 +360,14 @@ export class ScheduleService {
     date: string;
     time: string;
     homeAway?: HomeAway | undefined;
+    timezone?: string | undefined;
     server?: string | undefined;
     code?: string | undefined;
     actorDiscordId: string;
   }) {
     const config = await this.ensureConfig(input.guildId);
-    const timezone = await this.managementTimezone(input.guildId, input.actorDiscordId);
+    const timezone =
+      input.timezone ?? (await this.managementTimezone(input.guildId, input.actorDiscordId));
 
     const isoDate = parseFlexibleDate(input.date, timezone);
     const { hours, minutes } = parseFlexibleTime(input.time);

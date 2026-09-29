@@ -1,0 +1,147 @@
+export interface ScheduledMatchup {
+  opponent: string;
+  homeAway: 'HOME' | 'AWAY'; // Home team is on the right in schedule listings
+  date: string; // YYYY-MM-DD
+  time: string; // e.g. "7:00 PM", "7:35 PM", "8:10 PM", "6:30 PM"
+}
+
+export interface OfficialWeekSchedule {
+  weekKey: string;
+  weekNumber: number;
+  label: string;
+  datesLabel: string;
+  sundayDate: string; // YYYY-MM-DD
+  games: ScheduledMatchup[];
+}
+
+export const OFFICIAL_SCHEDULE: Record<string, OfficialWeekSchedule> = {
+  'week-2': {
+    weekKey: 'week-2',
+    weekNumber: 2,
+    label: 'Week 2',
+    datesLabel: 'Oct 04 - Oct 06',
+    sundayDate: '2026-10-04',
+    games: [
+      { opponent: 'Bowling Green State Falcons', homeAway: 'HOME', date: '2026-10-04', time: '7:00 PM' },
+      { opponent: 'Minnesota Duluth Bulldogs', homeAway: 'HOME', date: '2026-10-04', time: '7:35 PM' },
+      { opponent: 'North Dakota Fighting Hawks', homeAway: 'AWAY', date: '2026-10-04', time: '8:10 PM' },
+      { opponent: 'Dartmouth Big Green', homeAway: 'AWAY', date: '2026-10-05', time: '7:00 PM' },
+      { opponent: 'Quinnipiac Bobcats', homeAway: 'HOME', date: '2026-10-05', time: '7:35 PM' },
+      { opponent: 'Michigan State Spartans', homeAway: 'AWAY', date: '2026-10-05', time: '8:10 PM' },
+      { opponent: 'Michigan Wolverines', homeAway: 'AWAY', date: '2026-10-06', time: '7:00 PM' },
+      { opponent: 'Michigan Tech Huskies', homeAway: 'HOME', date: '2026-10-06', time: '7:35 PM' },
+      { opponent: 'Minnesota State Mavericks', homeAway: 'HOME', date: '2026-10-06', time: '8:10 PM' },
+    ],
+  },
+  'week-3': {
+    weekKey: 'week-3',
+    weekNumber: 3,
+    label: 'Week 3',
+    datesLabel: 'Oct 11 - Oct 13',
+    sundayDate: '2026-10-11',
+    games: [
+      { opponent: 'Denver Pioneers', homeAway: 'AWAY', date: '2026-10-11', time: '7:00 PM' },
+      { opponent: 'University of Connecticut', homeAway: 'HOME', date: '2026-10-11', time: '7:35 PM' },
+      { opponent: 'Michigan Wolverines', homeAway: 'HOME', date: '2026-10-11', time: '8:10 PM' },
+      { opponent: 'Cornell Big Red', homeAway: 'HOME', date: '2026-10-12', time: '7:00 PM' },
+      { opponent: 'Boston College Eagles', homeAway: 'AWAY', date: '2026-10-12', time: '7:35 PM' },
+      { opponent: 'Penn State Nittany Lions', homeAway: 'AWAY', date: '2026-10-12', time: '8:10 PM' },
+      { opponent: 'Michigan Tech Huskies', homeAway: 'AWAY', date: '2026-10-13', time: '7:00 PM' },
+      { opponent: 'Princeton Tigers', homeAway: 'HOME', date: '2026-10-13', time: '7:35 PM' },
+      { opponent: 'Augustana University', homeAway: 'AWAY', date: '2026-10-13', time: '8:10 PM' },
+    ],
+  },
+  'week-4': {
+    weekKey: 'week-4',
+    weekNumber: 4,
+    label: 'Week 4',
+    datesLabel: 'Oct 18 - Oct 20',
+    sundayDate: '2026-10-18',
+    games: [
+      { opponent: 'Michigan State Spartans', homeAway: 'HOME', date: '2026-10-18', time: '6:30 PM' },
+      { opponent: 'North Dakota Fighting Hawks', homeAway: 'AWAY', date: '2026-10-18', time: '7:00 PM' },
+      { opponent: 'Penn State Nittany Lions', homeAway: 'HOME', date: '2026-10-18', time: '7:35 PM' },
+      { opponent: 'Wisconsin Badgers', homeAway: 'HOME', date: '2026-10-18', time: '8:10 PM' },
+      { opponent: 'Western Michigan Broncos', homeAway: 'AWAY', date: '2026-10-19', time: '6:30 PM' },
+      { opponent: 'Dartmouth Big Green', homeAway: 'HOME', date: '2026-10-19', time: '7:00 PM' },
+      { opponent: 'Michigan Wolverines', homeAway: 'HOME', date: '2026-10-19', time: '7:35 PM' },
+      { opponent: 'Denver Pioneers', homeAway: 'HOME', date: '2026-10-19', time: '8:10 PM' },
+      { opponent: 'Cornell Big Red', homeAway: 'AWAY', date: '2026-10-20', time: '6:30 PM' },
+      { opponent: 'Minnesota Duluth Bulldogs', homeAway: 'AWAY', date: '2026-10-20', time: '7:00 PM' },
+      { opponent: 'Augustana University', homeAway: 'HOME', date: '2026-10-20', time: '7:35 PM' },
+      { opponent: 'Bowling Green State Falcons', homeAway: 'AWAY', date: '2026-10-20', time: '8:10 PM' },
+    ],
+  },
+  'week-5': {
+    weekKey: 'week-5',
+    weekNumber: 5,
+    label: 'Week 5',
+    datesLabel: 'Oct 25 - Oct 27',
+    sundayDate: '2026-10-25',
+    games: [
+      { opponent: 'Quinnipiac Bobcats', homeAway: 'HOME', date: '2026-10-25', time: '7:00 PM' },
+      { opponent: 'Bowling Green State Falcons', homeAway: 'AWAY', date: '2026-10-25', time: '7:35 PM' },
+      { opponent: 'Michigan Tech Huskies', homeAway: 'AWAY', date: '2026-10-25', time: '8:10 PM' },
+      { opponent: 'Minnesota Duluth Bulldogs', homeAway: 'AWAY', date: '2026-10-26', time: '7:00 PM' },
+      { opponent: 'Dartmouth Big Green', homeAway: 'AWAY', date: '2026-10-26', time: '7:35 PM' },
+      { opponent: 'North Dakota Fighting Hawks', homeAway: 'HOME', date: '2026-10-26', time: '8:10 PM' },
+      { opponent: 'Princeton Tigers', homeAway: 'HOME', date: '2026-10-27', time: '7:00 PM' },
+      { opponent: 'Western Michigan Broncos', homeAway: 'HOME', date: '2026-10-27', time: '7:35 PM' },
+      { opponent: 'Michigan State Spartans', homeAway: 'AWAY', date: '2026-10-27', time: '8:10 PM' },
+    ],
+  },
+  'week-6': {
+    weekKey: 'week-6',
+    weekNumber: 6,
+    label: 'Week 6',
+    datesLabel: 'Nov 01 - Nov 03',
+    sundayDate: '2026-11-01',
+    games: [
+      { opponent: 'University of Connecticut', homeAway: 'AWAY', date: '2026-11-01', time: '7:00 PM' },
+      { opponent: 'Boston College Eagles', homeAway: 'HOME', date: '2026-11-01', time: '7:35 PM' },
+      { opponent: 'Providence Friars', homeAway: 'HOME', date: '2026-11-01', time: '8:10 PM' },
+      { opponent: 'Boston College Eagles', homeAway: 'AWAY', date: '2026-11-02', time: '7:00 PM' },
+      { opponent: 'University of Connecticut', homeAway: 'HOME', date: '2026-11-02', time: '7:35 PM' },
+      { opponent: 'Providence Friars', homeAway: 'AWAY', date: '2026-11-02', time: '8:10 PM' },
+      { opponent: 'Providence Friars', homeAway: 'HOME', date: '2026-11-03', time: '7:00 PM' },
+      { opponent: 'Boston College Eagles', homeAway: 'HOME', date: '2026-11-03', time: '7:35 PM' },
+      { opponent: 'University of Connecticut', homeAway: 'AWAY', date: '2026-11-03', time: '8:10 PM' },
+    ],
+  },
+  'week-7': {
+    weekKey: 'week-7',
+    weekNumber: 7,
+    label: 'Week 7',
+    datesLabel: 'Nov 08 - Nov 10',
+    sundayDate: '2026-11-08',
+    games: [
+      { opponent: 'Wisconsin Badgers', homeAway: 'AWAY', date: '2026-11-08', time: '7:00 PM' },
+      { opponent: 'Minnesota Duluth Bulldogs', homeAway: 'HOME', date: '2026-11-08', time: '7:35 PM' },
+      { opponent: 'Minnesota State Mavericks', homeAway: 'HOME', date: '2026-11-08', time: '8:10 PM' },
+      { opponent: 'Michigan Wolverines', homeAway: 'HOME', date: '2026-11-09', time: '7:00 PM' },
+      { opponent: 'Quinnipiac Bobcats', homeAway: 'AWAY', date: '2026-11-09', time: '7:35 PM' },
+      { opponent: 'Augustana University', homeAway: 'AWAY', date: '2026-11-09', time: '8:10 PM' },
+      { opponent: 'North Dakota Fighting Hawks', homeAway: 'AWAY', date: '2026-11-10', time: '7:00 PM' },
+      { opponent: 'Bowling Green State Falcons', homeAway: 'HOME', date: '2026-11-10', time: '7:35 PM' },
+      { opponent: 'Denver Pioneers', homeAway: 'AWAY', date: '2026-11-10', time: '8:10 PM' },
+    ],
+  },
+  'week-8': {
+    weekKey: 'week-8',
+    weekNumber: 8,
+    label: 'Week 8',
+    datesLabel: 'Nov 15 - Nov 17',
+    sundayDate: '2026-11-15',
+    games: [
+      { opponent: 'Michigan State Spartans', homeAway: 'HOME', date: '2026-11-15', time: '7:00 PM' },
+      { opponent: 'Cornell Big Red', homeAway: 'AWAY', date: '2026-11-15', time: '7:35 PM' },
+      { opponent: 'Wisconsin Badgers', homeAway: 'AWAY', date: '2026-11-15', time: '8:10 PM' },
+      { opponent: 'Penn State Nittany Lions', homeAway: 'HOME', date: '2026-11-16', time: '7:00 PM' },
+      { opponent: 'Princeton Tigers', homeAway: 'AWAY', date: '2026-11-16', time: '7:35 PM' },
+      { opponent: 'Michigan Tech Huskies', homeAway: 'HOME', date: '2026-11-16', time: '8:10 PM' },
+      { opponent: 'Quinnipiac Bobcats', homeAway: 'AWAY', date: '2026-11-17', time: '7:00 PM' },
+      { opponent: 'Western Michigan Broncos', homeAway: 'HOME', date: '2026-11-17', time: '7:35 PM' },
+      { opponent: 'Dartmouth Big Green', homeAway: 'AWAY', date: '2026-11-17', time: '8:10 PM' },
+    ],
+  },
+};

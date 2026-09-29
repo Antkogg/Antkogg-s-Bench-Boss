@@ -6,14 +6,15 @@ import { handleSetup } from '../commands/setup.js';
 import { handleAvailability } from '../commands/availability.js';
 import { handleTeam, handleTc, handleTeamButton } from '../commands/team.js';
 import { handleAnnouncement } from '../commands/announce.js';
-import { handleAddGame, handleDeleteGame, handleGame, handleSchedule, handleSetCode, handleTimezone, handleWeek, } from '../commands/schedule.js';
+import { handleAddGame, handleAddGames, handleDeleteGame, handleGame, handleLineupCommand, handleSchedule, handleSetCode, handleTimezone, handleWeek, } from '../commands/schedule.js';
+import { handlePostWeek, handlePostWeekInteraction } from '../commands/post-week.js';
 import { handleBuilds, handleDisconnect, handleRule, handleRules } from '../commands/rules.js';
 import { renderError } from '../renderers/design.js';
 import { waitlistPrompt, handleButton } from '../interactions/buttons.js';
 import { handleManagementModal, handleRegistrationModal } from '../interactions/modals.js';
 import { handleSelectMenu } from '../interactions/select-menus.js';
 import { handleAvailabilityReminderButton, handleWeeklyAvailabilityButton, handleWeeklyAvailabilitySelect, } from '../interactions/weekly-availability.js';
-import { handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handlePlayerGameButton, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
+import { handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handlePlayerGameButton, handleQuickGameModal, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
 import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
 import { AppError, publicErrorMessage } from '../utils/errors.js';
@@ -63,6 +64,12 @@ export async function routeInteraction(interaction, context) {
                 await handleSetPosition(interaction, context);
             else if (interaction.commandName === 'set-positions')
                 await handleSetPositions(interaction, context);
+            else if (interaction.commandName === 'add-games')
+                await handleAddGames(interaction, context);
+            else if (interaction.commandName === 'post-week')
+                await handlePostWeek(interaction, context);
+            else if (interaction.commandName === 'lineup')
+                await handleLineupCommand(interaction, context);
             else if (interaction.commandName === 'delete-game')
                 await handleDeleteGame(interaction, context);
             else if (interaction.commandName === 'games')
@@ -97,6 +104,8 @@ export async function routeInteraction(interaction, context) {
                 await handleRosterNavButton(interaction, context, parsed, 'next');
             else if (parsed.action === 'roster-modal-btn')
                 await handleRosterModalButton(interaction, context, parsed);
+            else if (parsed.action === 'post-week-btn')
+                await handlePostWeekInteraction(interaction, context, parsed);
             else if (parsed.action === 'player-game')
                 await handlePlayerGameButton(interaction, context, parsed);
             else
@@ -111,7 +120,10 @@ export async function routeInteraction(interaction, context) {
                 await handleWelcomeSelectMenu(interaction, context, parsed);
             else if (parsed.action === 'weekly-availability-select')
                 await handleWeeklyAvailabilitySelect(interaction, context, parsed);
-            else if (parsed.action === 'week-game-select')
+            else if (parsed.action === 'post-week-select')
+                await handlePostWeekInteraction(interaction, context, parsed);
+            else if (parsed.action === 'week-game-select' ||
+                (parsed.action === 'lineup-action' && parsed.value === 'game-chosen'))
                 await handleWeekGameSelect(interaction, context);
             else if (parsed.action === 'lineup-position-select')
                 await handleLineupPositionSelect(interaction, context);
@@ -141,6 +153,8 @@ export async function routeInteraction(interaction, context) {
                 await handleGameCodeModal(interaction, context, parsed);
             else if (parsed.action === 'modal-roster-positions')
                 await handleRosterModalSubmit(interaction, context, parsed);
+            else if (parsed.action === 'modal-quick-game')
+                await handleQuickGameModal(interaction, context, parsed);
             return;
         }
         if (interaction.isAutocomplete()) {

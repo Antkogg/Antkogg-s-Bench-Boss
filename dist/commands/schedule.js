@@ -1,33 +1,63 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, } from 'discord.js';
+import { DateTime } from 'luxon';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
-import { renderGame, renderManagementWeek, renderPlayerWeek, } from '../renderers/schedule.renderer.js';
+import { gameOpponentLabel, renderGame, renderManagementWeek, renderPlayerWeek, } from '../renderers/schedule.renderer.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { requireManagement } from './authorization.js';
+import { getTeamMembersWithRole } from './management.js';
 export async function syncAvailabilityPost(guildId, week, context, client) {
     const config = await context.config.ensure(guildId);
-    if (!config.teamAvailabilityChannelId)
+    let channelId = config.teamAvailabilityChannelId;
+    const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+    if (!channelId && guild) {
+        const found = guild.channels.cache.find((c) => c.isTextBased() &&
+            (c.name.toLowerCase().includes('availability') ||
+                c.name.toLowerCase().includes('schedule')));
+        if (found) {
+            channelId = found.id;
+            await context.prisma.guildConfig.update({
+                where: { guildId },
+                data: { teamAvailabilityChannelId: channelId },
+            });
+        }
+    }
+    if (!channelId)
         return null;
     try {
-        const channel = (await client.channels.fetch(config.teamAvailabilityChannelId));
+        const channel = (await client.channels.fetch(channelId).catch(() => null));
         if (!channel?.isTextBased())
             return null;
+        let rosterMembers;
+        if (guild) {
+            try {
+                const { members } = await getTeamMembersWithRole(guild, config.rosterRoleId, false);
+                rosterMembers = members.map((m) => ({
+                    id: m.id,
+                    displayName: m.displayName || m.user.username,
+                }));
+            }
+            catch {
+                // ignore
+            }
+        }
+        const payload = renderWeeklyAvailability(week, rosterMembers);
         if (week.messageId && week.channelId === channel.id) {
             try {
                 const msg = await channel.messages.fetch(week.messageId);
-                await msg.edit(renderWeeklyAvailability(week));
+                await msg.edit(payload);
                 return channel;
             }
             catch {
-                const msg = await channel.send(renderWeeklyAvailability(week));
+                const msg = await channel.send(payload);
                 await context.weeklyAvailability.saveMessage(week.id, channel.id, msg.id);
                 return channel;
             }
         }
         else {
-            const msg = await channel.send(renderWeeklyAvailability(week));
+            const msg = await channel.send(payload);
             await context.weeklyAvailability.saveMessage(week.id, channel.id, msg.id);
             return channel;
         }
@@ -40,6 +70,7 @@ export async function syncAvailabilityPost(guildId, week, context, client) {
 export async function handleAddGame(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
     await requireManagement(interaction, context);
     const opponent = interaction.options.getString('opponent', true);
     const date = interaction.options.getString('date', true);
@@ -98,8 +129,7 @@ export async function handleAddGame(interaction, context) {
             .setLabel('Delete Game')
             .setStyle(ButtonStyle.Danger));
     }
-    await interaction.reply({
-        ephemeral: true,
+    await interaction.editReply({
         embeds: [embed],
         components: buttons.components.length ? [buttons] : [],
     });
@@ -107,6 +137,7 @@ export async function handleAddGame(interaction, context) {
 export async function handleSetCode(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
     await requireManagement(interaction, context);
     const server = interaction.options.getString('server', true);
     const code = interaction.options.getString('code', true);
@@ -151,8 +182,7 @@ export async function handleSetCode(interaction, context) {
     if (week) {
         await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
     }
-    await interaction.reply({
-        ephemeral: true,
+    await interaction.editReply({
         embeds: [
             renderSuccess('Server & Code Saved', `**${updatedGame.opponentNameSnapshot ?? 'Upcoming Game'}**\n` +
                 `**Server:** ${server}\n**Code:** ${code}\n\n` +
@@ -165,6 +195,7 @@ export async function handleSetCode(interaction, context) {
 export async function handleDeleteGame(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
     await requireManagement(interaction, context);
     const gameQuery = interaction.options.getString('game', true).trim();
     const currentWeek = await context.schedule.currentWeek(interaction.guildId);
@@ -185,20 +216,19 @@ export async function handleDeleteGame(interaction, context) {
     }
     const updatedWeek = await context.schedule.deleteGame(interaction.guildId, targetGameId, interaction.user.id);
     await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
-    await interaction.reply({
-        ephemeral: true,
+    await interaction.editReply({
         embeds: [renderSuccess('Game Deleted', 'The game was removed from the schedule.')],
     });
 }
 export async function handleTimezone(interaction, context) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
     await requireManagement(interaction, context);
     if (interaction.options.getSubcommand() === 'set') {
         const timezone = interaction.options.getString('timezone', true);
         await context.schedule.setManagementTimezone(interaction.guildId, interaction.user.id, timezone, interaction.user.id);
-        await interaction.reply({
-            ephemeral: true,
+        await interaction.editReply({
             embeds: [
                 renderSuccess('Timezone saved', `Schedule times you enter will be interpreted as **${timezone}**.`),
             ],
@@ -206,8 +236,7 @@ export async function handleTimezone(interaction, context) {
     }
     else {
         const timezone = await context.schedule.managementTimezone(interaction.guildId, interaction.user.id);
-        await interaction.reply({
-            ephemeral: true,
+        await interaction.editReply({
             embeds: [renderSuccess('Management timezone', timezone)],
         });
     }
@@ -215,7 +244,6 @@ export async function handleTimezone(interaction, context) {
 export async function handleWeek(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
-    await requireManagement(interaction, context);
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === 'code')
         return handleSetCode(interaction, context);
@@ -223,6 +251,8 @@ export async function handleWeek(interaction, context) {
         return handleAddGame(interaction, context);
     if (subcommand === 'delete-game')
         return handleDeleteGame(interaction, context);
+    await interaction.deferReply({ ephemeral: true });
+    await requireManagement(interaction, context);
     const week = subcommand === 'setup'
         ? await context.schedule.createWeek({
             guildId: interaction.guildId,
@@ -238,11 +268,12 @@ export async function handleWeek(interaction, context) {
             : await context.schedule.currentWeek(interaction.guildId);
     if (!week)
         throw new AppError('NOT_FOUND', 'No current week was found.');
-    await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
+    await interaction.editReply(renderManagementWeek(week));
 }
 export async function handleSchedule(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
     const [week, config, member] = await Promise.all([
         context.schedule.currentWeek(interaction.guildId),
         context.config.ensure(interaction.guildId),
@@ -251,15 +282,16 @@ export async function handleSchedule(interaction, context) {
     if (!week)
         throw new AppError('NOT_FOUND', 'No current week was found.');
     if (hasManagementAccess(accessLevel(member, config))) {
-        await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
+        await interaction.editReply(renderManagementWeek(week));
         return;
     }
     const player = await context.players.byDiscordId(interaction.guildId, interaction.user.id, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL());
-    await interaction.reply({ ephemeral: true, ...renderPlayerWeek(week, player.id) });
+    await interaction.editReply(renderPlayerWeek(week, player.id));
 }
 export async function handleGame(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
     const [config, member] = await Promise.all([
         context.config.ensure(interaction.guildId),
         interaction.guild.members.fetch(interaction.user.id),
@@ -271,6 +303,125 @@ export async function handleGame(interaction, context) {
     const game = await context.schedule.nearestGame(interaction.guildId, player?.id);
     if (!game)
         throw new AppError('NOT_FOUND', management ? 'No upcoming game was found.' : 'You do not have an upcoming confirmed game.');
-    await interaction.reply({ ephemeral: true, ...renderGame(game, management, player?.id) });
+    await interaction.editReply(renderGame(game, management, player?.id));
+}
+export function parseScheduleLine(line, fallbackDate) {
+    const trimmed = line.trim();
+    if (!trimmed)
+        return null;
+    let homeAway = 'HOME';
+    if (/\b(at|@)\b/i.test(trimmed)) {
+        homeAway = 'AWAY';
+    }
+    const cleanLine = trimmed.replace(/\b(vs|@|at)\b/gi, ' ');
+    const timeMatch = cleanLine.match(/(\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\b|\b\d{1,2}:\d{2}\b)/);
+    const time = timeMatch ? timeMatch[1].trim() : '8:30 PM';
+    const dayMatch = cleanLine.match(/\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sun|Mon|Tue|Wed|Thu|Fri|Sat|Today|Tomorrow|\d{1,2}[\/-]\d{1,2})\b/i);
+    const date = dayMatch ? dayMatch[1].trim() : (fallbackDate ?? 'Sunday');
+    let opponent = cleanLine;
+    if (timeMatch)
+        opponent = opponent.replace(timeMatch[0], ' ');
+    if (dayMatch)
+        opponent = opponent.replace(dayMatch[0], ' ');
+    opponent = opponent.replace(/[\-–—:,]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!opponent)
+        return null;
+    return { opponent, date, time, homeAway };
+}
+export async function handleAddGames(interaction, context) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
+    await requireManagement(interaction, context);
+    const rawGames = interaction.options.getString('schedule', true);
+    const lines = rawGames.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+    const results = [];
+    const errors = [];
+    let lastDate;
+    for (const line of lines) {
+        const parsed = parseScheduleLine(line, lastDate);
+        if (!parsed) {
+            errors.push(`Could not understand format in: \`${line}\``);
+            continue;
+        }
+        lastDate = parsed.date;
+        try {
+            await context.schedule.addGame({
+                guildId: interaction.guildId,
+                opponent: parsed.opponent,
+                date: parsed.date,
+                time: parsed.time,
+                homeAway: parsed.homeAway,
+                actorDiscordId: interaction.user.id,
+            });
+            results.push(`✅ **${parsed.homeAway === 'AWAY' ? '@' : 'vs'} ${parsed.opponent}** • ${parsed.date} at ${parsed.time}`);
+        }
+        catch (err) {
+            errors.push(`Failed for \`${line}\`: ${err.message}`);
+        }
+    }
+    const week = await context.schedule.currentWeek(interaction.guildId);
+    if (week) {
+        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
+    const embed = brandedEmbed()
+        .setTitle(`SCHEDULE UPDATED: ${results.length} Game(s) Added`)
+        .setDescription(results.length
+        ? results.join('\n') +
+            '\n\n*The availability board in `#team-availability` has been updated!*'
+        : 'No games could be added. Check formatting.');
+    if (errors.length) {
+        embed.addFields({
+            name: '⚠️ Skipped / Errors',
+            value: errors.slice(0, 10).join('\n'),
+        });
+    }
+    await interaction.editReply({ embeds: [embed] });
+}
+export async function handleLineupCommand(interaction, context) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
+    await requireManagement(interaction, context);
+    const currentWeek = await context.schedule.currentWeek(interaction.guildId);
+    if (!currentWeek || !currentWeek.games.length) {
+        throw new AppError('NOT_FOUND', 'No games are scheduled for this week yet. Add games first!');
+    }
+    const activeGames = currentWeek.games.filter((g) => g.status !== 'CANCELLED');
+    const gameArg = interaction.options.getString('game')?.trim();
+    let targetGameId;
+    if (gameArg) {
+        const num = parseInt(gameArg, 10);
+        if (!isNaN(num) && num >= 1 && num <= activeGames.length) {
+            targetGameId = activeGames[num - 1]?.id;
+        }
+        else {
+            targetGameId = activeGames.find((g) => g.id === gameArg)?.id;
+        }
+    }
+    if (!targetGameId) {
+        if (activeGames.length === 1) {
+            targetGameId = activeGames[0].id;
+        }
+        else {
+            const selectMenu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+                .setCustomId(customId('lineup-action', currentWeek.id, 'game-chosen'))
+                .setPlaceholder('Choose a game to set starters for...')
+                .addOptions(activeGames.map((g, idx) => ({
+                label: `Game ${idx + 1}: ${gameOpponentLabel(g)}`.slice(0, 100),
+                value: g.id,
+                description: DateTime.fromJSDate(g.scheduledAtUtc).toFormat('cccc h:mm a'),
+            }))));
+            await interaction.editReply({
+                content: '🏒 **Choose which game to set the lineup for:**',
+                components: [selectMenu],
+            });
+            return;
+        }
+    }
+    const game = await context.schedule.game(targetGameId);
+    if (!game)
+        throw new AppError('NOT_FOUND', 'Game not found.');
+    await interaction.editReply(renderGame(game, true));
 }
 //# sourceMappingURL=schedule.js.map

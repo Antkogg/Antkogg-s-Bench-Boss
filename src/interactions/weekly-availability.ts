@@ -1,118 +1,190 @@
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
+  StringSelectMenuBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
+import { DateTime } from 'luxon';
 import type { BotContext } from '../commands/context.js';
 import { requireManagement } from '../commands/authorization.js';
-import { availabilityGameSelector } from '../commands/availability.js';
-import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
-import { gameOpponentLabel, groupGamesByGuildDay } from '../renderers/schedule.renderer.js';
+import { brandedEmbed, renderSuccess } from '../renderers/design.js';
+import { gameOpponentLabel } from '../renderers/schedule.renderer.js';
 import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
 import { customId, type ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
+import { syncAvailabilityPost } from '../commands/schedule.js';
+
+async function checkTeamRole(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  configRoleId?: string | null,
+): Promise<boolean> {
+  if (!interaction.guild) return false;
+  const role =
+    interaction.guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+    interaction.guild.roles.cache.get(configRoleId ?? '') ??
+    interaction.guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+
+  if (!role) return true; // If no team role configured or found, allow server members
+
+  const member =
+    interaction.member && 'roles' in interaction.member
+      ? (interaction.member as any)
+      : await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+
+  if (!member) return false;
+  return 'cache' in member.roles
+    ? member.roles.cache.has(role.id)
+    : Array.isArray(member.roles)
+      ? member.roles.includes(role.id)
+      : false;
+}
 
 export async function handleWeeklyAvailabilityButton(
   interaction: ButtonInteraction,
   context: BotContext,
   parsed: ParsedCustomId,
 ): Promise<void> {
-  if (!interaction.guildId)
+  if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Submit availability inside the server.');
-  const [week, player] = await Promise.all([
-    context.weeklyAvailability.getWeek(parsed.entityId),
-    context.players.byDiscordId(
-      interaction.guildId,
-      interaction.user.id,
-      interaction.user.displayName ?? interaction.user.username,
-      interaction.user.displayAvatarURL(),
-    ),
-  ]);
-  if (!week) throw new AppError('STALE_INTERACTION', 'This availability week no longer exists.');
-  if (week.status !== 'OPEN')
-    throw new AppError('INVALID_STATE', 'Availability is currently locked.');
-  if (!week.games.length)
-    throw new AppError('INVALID_STATE', 'No games have been configured for this week.');
 
-  const requiredRoleId = week.guildConfig.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
-  const member =
-    interaction.member && 'roles' in interaction.member
-      ? interaction.member
-      : await interaction.guild?.members.fetch(interaction.user.id);
-  const hasRole =
-    member &&
-    ('roles' in member && 'cache' in member.roles
-      ? member.roles.cache.has(requiredRoleId)
-      : Array.isArray(member.roles)
-        ? member.roles.includes(requiredRoleId)
-        : false);
+  const week = await context.weeklyAvailability.getWeek(parsed.entityId);
+  if (!week) throw new AppError('STALE_INTERACTION', 'This availability week no longer exists.');
+
+  const hasRole = await checkTeamRole(interaction, week.guildConfig?.rosterRoleId);
   if (!hasRole) {
     throw new AppError(
       'NOT_ALLOWED',
-      `Only players with the team role (<@&${requiredRoleId}>) can submit availability.`,
+      'Only players with the team role (@S55 BU) can submit availability.',
     );
   }
+
+  // Ensure player profile exists and is on ROSTER
+  const player = await context.players.byDiscordId(
+    interaction.guildId,
+    interaction.user.id,
+    interaction.user.displayName ?? interaction.user.username,
+    interaction.user.displayAvatarURL(),
+  );
   if (player.teamStatus !== 'ROSTER') {
     await context.prisma.player.update({
       where: { id: player.id },
-      data: { teamStatus: 'ROSTER' },
+      data: { teamStatus: 'ROSTER', registered: true },
     });
   }
 
+  // 1. Available for ALL (1 Click)
+  if (parsed.value === 'avail-all') {
+    await interaction.deferReply({ ephemeral: true });
+    const gameIds = week.games.map((g) => g.id);
+    await context.weeklyAvailability.submit({
+      guildId: interaction.guildId,
+      discordUserId: interaction.user.id,
+      weekId: week.id,
+      gameIds,
+    });
+
+    const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
+    if (updatedWeek) {
+      await syncAvailabilityPost(interaction.guildId, updatedWeek as any, context, interaction.client);
+    }
+
+    await interaction.editReply({
+      embeds: [
+        renderSuccess(
+          'Availability Saved!',
+          `🟢 Marked you **AVAILABLE** for all **${week.games.length}** games this week!\n` +
+            `The team availability board has been updated.`,
+        ),
+      ],
+    });
+    return;
+  }
+
+  // 2. Unavailable for ALL (1 Click)
   if (parsed.value === 'unavailable') {
+    await interaction.deferReply({ ephemeral: true });
     await context.weeklyAvailability.submit({
       guildId: interaction.guildId,
       discordUserId: interaction.user.id,
       weekId: week.id,
       gameIds: [],
     });
-    await interaction.reply({
-      ephemeral: true,
+
+    const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
+    if (updatedWeek) {
+      await syncAvailabilityPost(interaction.guildId, updatedWeek as any, context, interaction.client);
+    }
+
+    await interaction.editReply({
       embeds: [
         renderSuccess(
-          'Availability saved',
-          'You marked yourself unavailable for every configured game.',
-        ),
-      ],
-      components: [
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(customId('weekly-availability', week.id, 'edit'))
-            .setLabel('Edit Availability')
-            .setStyle(ButtonStyle.Secondary),
+          'Availability Saved',
+          `🔴 Marked you **OUT** for all games this week.\n` +
+            `The team availability board has been updated.`,
         ),
       ],
     });
     return;
   }
-  const existing = week.submissions.find((submission) => submission.playerId === player.id);
-  const defaults =
-    existing?.responses
-      .filter((response) => response.status === 'AVAILABLE')
-      .map((response) => response.gameId) ?? [];
-  const embed = brandedEmbed()
-    .setTitle(`${week.label.toUpperCase()} • YOUR AVAILABILITY`)
-    .setDescription(
-      'Select every game you are available for. Unselected games will be saved as unavailable.',
+
+  // 3. Pick specific games (Custom checkboxes)
+  if (parsed.value === 'pick' || parsed.value === 'submit' || parsed.value === 'edit') {
+    await interaction.deferReply({ ephemeral: true });
+    const existing = week.submissions.find((s) => s.playerId === player.id);
+    const defaults =
+      existing?.responses
+        .filter((r) => r.status === 'AVAILABLE')
+        .map((r) => r.gameId) ?? [];
+
+    if (!week.games.length) {
+      throw new AppError('NOT_FOUND', 'No games are configured for this week yet.');
+    }
+
+    const selectMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(customId('weekly-availability-select', week.id))
+        .setPlaceholder('Select all games you CAN play (unselected = OUT)...')
+        .setMinValues(0)
+        .setMaxValues(week.games.length)
+        .addOptions(
+          week.games.map((g, idx) => ({
+            label: `Game ${idx + 1}: ${gameOpponentLabel(g)}`.slice(0, 100),
+            value: g.id,
+            description: DateTime.fromJSDate(g.scheduledAtUtc).toFormat('cccc h:mm a'),
+            default: defaults.includes(g.id),
+          })),
+        ),
     );
-  for (const group of groupGamesByGuildDay(
-    week.games.filter((game) => game.status !== 'CANCELLED'),
-    week.guildConfig.timezone,
-  )) {
-    embed.addFields({
-      name: group.day.toUpperCase(),
-      value: group.games
-        .map((game) => `${gameOpponentLabel(game)} • ${discordTimestamp(game.scheduledAtUtc, 'F')}`)
-        .join('\n'),
+
+    const embed = brandedEmbed()
+      .setTitle(`SELECT YOUR GAMES`)
+      .setDescription(
+        `Select all the games you are available to play below.\n` +
+          `Any unselected games will be saved as **OUT**.\n\n` +
+          week.games
+            .map(
+              (g, i) =>
+                `**Game ${i + 1}:** ${gameOpponentLabel(g)} • <t:${Math.floor(g.scheduledAtUtc.getTime() / 1000)}:F>`,
+            )
+            .join('\n'),
+      );
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: [selectMenu],
     });
+    return;
   }
-  await interaction.reply({
-    ephemeral: true,
-    embeds: [embed],
-    components: [availabilityGameSelector(week.id, week.games, defaults)],
-  });
+
+  // 4. Refresh board
+  if (parsed.value === 'refresh') {
+    await interaction.deferUpdate();
+    const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
+    if (updatedWeek) {
+      await syncAvailabilityPost(interaction.guildId, updatedWeek as any, context, interaction.client);
+    }
+    return;
+  }
 }
 
 export async function handleAvailabilityReminderButton(
@@ -173,58 +245,30 @@ export async function handleWeeklyAvailabilitySelect(
 ): Promise<void> {
   if (!interaction.guildId)
     throw new AppError('NOT_ALLOWED', 'Submit availability inside the server.');
+  await interaction.deferReply({ ephemeral: true });
+
   const week = await context.weeklyAvailability.getWeek(parsed.entityId);
   if (!week) throw new AppError('STALE_INTERACTION', 'This availability week no longer exists.');
 
-  const requiredRoleId = week.guildConfig.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
-  const member =
-    interaction.member && 'roles' in interaction.member
-      ? interaction.member
-      : await interaction.guild?.members.fetch(interaction.user.id);
-  const hasRole =
-    member &&
-    ('roles' in member && 'cache' in member.roles
-      ? member.roles.cache.has(requiredRoleId)
-      : Array.isArray(member.roles)
-        ? member.roles.includes(requiredRoleId)
-        : false);
-  if (!hasRole) {
-    throw new AppError(
-      'NOT_ALLOWED',
-      `Only players with the team role (<@&${requiredRoleId}>) can submit availability.`,
-    );
-  }
-
-  const submission = await context.weeklyAvailability.submit({
+  const selectedGameIds = interaction.values;
+  await context.weeklyAvailability.submit({
     guildId: interaction.guildId,
     discordUserId: interaction.user.id,
     weekId: parsed.entityId,
-    gameIds: interaction.values,
+    gameIds: selectedGameIds,
   });
-  if (!submission) throw new AppError('NOT_FOUND', 'Availability submission was not saved.');
-  const available = submission.responses.filter((response) => response.status === 'AVAILABLE');
-  const unavailable = submission.responses.filter((response) => response.status === 'UNAVAILABLE');
-  const rows = (responses: typeof submission.responses) =>
-    responses
-      .map(
-        (response) =>
-          `${gameOpponentLabel(response.game)} • ${discordTimestamp(response.game.scheduledAtUtc, 'F')}`,
-      )
-      .join('\n') || 'None';
-  await interaction.update({
-    content: '',
+
+  const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
+  if (updatedWeek) {
+    await syncAvailabilityPost(interaction.guildId, updatedWeek as any, context, interaction.client);
+  }
+
+  await interaction.editReply({
     embeds: [
       renderSuccess(
-        'Availability saved',
-        `**AVAILABLE**\n${rows(available)}\n\n**UNAVAILABLE**\n${rows(unavailable)}`,
-      ),
-    ],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(customId('weekly-availability', parsed.entityId, 'edit'))
-          .setLabel('Edit Availability')
-          .setStyle(ButtonStyle.Secondary),
+        'Availability Saved!',
+        `✅ Updated your availability: **${selectedGameIds.length} of ${week.games.length}** games selected as AVAILABLE.\n` +
+          `The team availability board has been updated.`,
       ),
     ],
   });
