@@ -195,48 +195,54 @@ export function renderGame(game, management, playerId) {
 export function renderIndividualGamePost(game, gameNumber) {
     const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
     const isAway = game.homeAway === 'AWAY';
-    const matchupSymbol = isAway ? '@' : 'VS';
-    const opponentName = (game.opponentNameSnapshot ?? 'Opponent').toUpperCase();
+    const opponentFullName = game.opponentNameSnapshot ?? 'Opponent';
+    const opponentShortName = opponentFullName
+        .replace(/\s+(Falcons|Bulldogs|Fighting Hawks|Hawks|Big Green|Bobcats|Huskies|Mavericks)$/i, '')
+        .toUpperCase();
+    const matchupLine = isAway
+        ? `Boston University @ ${opponentFullName}`
+        : `Boston University vs ${opponentFullName}`;
     const venueLine = isAway
-        ? `Away @ ${opponentName}`
-        : `Home vs ${opponentName}`;
-    const serverCodeValue = game.gameServer || game.gameCode
-        ? `**Server:** \`${game.gameServer ?? 'TBD'}\`  ┃  **Code:** \`${game.gameCode ?? 'TBD'}\``
-        : '`TBD`';
+        ? `✈️ Away @ ${opponentFullName}`
+        : `🏠 Home vs ${opponentFullName}`;
+    const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
+    const dayNamePlural = `${dayName}s`;
     const formatSlot = (pos) => {
         const assignment = game.lineup?.find((l) => l.position === pos);
         if (assignment) {
             return `<@${assignment.player.discordUserId}>`;
         }
-        return '`Open`';
+        return 'Open';
     };
-    const forwardsText = `**LW:** ${formatSlot('LW')}\n` +
-        `**C:**  ${formatSlot('C')}\n` +
-        `**RW:** ${formatSlot('RW')}`;
-    const defenseText = `**LD:** ${formatSlot('LD')}\n` +
-        `**RD:** ${formatSlot('RD')}\n` +
-        `**G:**  ${formatSlot('G')}`;
+    const forwardsText = `LW — ${formatSlot('LW')}\n` +
+        `C — ${formatSlot('C')}\n` +
+        `RW — ${formatSlot('RW')}`;
+    const defenseText = `LD — ${formatSlot('LD')}\n` +
+        `RD — ${formatSlot('RD')}\n` +
+        `G — ${formatSlot('G')}`;
     const availablePlayers = (game.responses ?? [])
         .filter((r) => r.status === 'AVAILABLE')
-        .map((r) => {
-        const p = r.submission.player;
-        const pos = p.signupPositions?.length ? ` *(${p.signupPositions.join('/')})*` : '';
-        return `<@${p.discordUserId}>${pos}`;
-    });
+        .map((r) => `<@${r.submission.player.discordUserId}>`);
     const outPlayers = (game.responses ?? [])
         .filter((r) => r.status === 'UNAVAILABLE')
         .map((r) => `<@${r.submission.player.discordUserId}>`);
+    const hasResponses = availablePlayers.length > 0 || outPlayers.length > 0;
+    const serverCodeValue = game.gameServer || game.gameCode
+        ? `Server: **${game.gameServer ?? 'Not set'}** ┃ Code: **${game.gameCode ?? 'Not set'}**`
+        : 'Not set';
     const embed = brandedEmbed(0xCC0000)
-        .setTitle(`GAME ${gameNumber ?? 1}: ${matchupSymbol} ${opponentName}`)
-        .setDescription(`**Time:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
-        `**Matchup:** ${venueLine}\n` +
-        `**Server & Code:** ${serverCodeValue}`)
+        .setAuthor(null)
+        .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${opponentShortName}`)
+        .setDescription(`${matchupLine}\n\n` +
+        `📅 <t:${timeUnix}:D>\n` +
+        `🕗 <t:${timeUnix}:t>\n` +
+        `${venueLine}`)
         .addFields({
-        name: 'Starting Forwards',
+        name: 'FORWARDS',
         value: forwardsText,
         inline: true,
     }, {
-        name: 'Defense & Goalie',
+        name: 'DEFENSE & GOALIE',
         value: defenseText,
         inline: true,
     }, {
@@ -244,41 +250,44 @@ export function renderIndividualGamePost(game, gameNumber) {
         value: '\u200B',
         inline: true,
     }, {
-        name: `🟢 Available (${availablePlayers.length})`,
-        value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None yet*',
+        name: `🟢 Available · ${availablePlayers.length}`,
+        value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : (hasResponses ? '*None*' : '*No responses yet*'),
         inline: true,
     }, {
-        name: `🔴 Out (${outPlayers.length})`,
-        value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
+        name: `🔴 Out · ${outPlayers.length}`,
+        value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : (hasResponses ? '*None*' : '*No responses yet*'),
         inline: true,
     }, {
         name: '\u200B',
         value: '\u200B',
         inline: true,
+    }, {
+        name: 'GAME CODE',
+        value: serverCodeValue,
+        inline: false,
     })
         .setFooter({
-        text: `S55 Boston University • Game ${gameNumber ?? 1} of 9`,
+        text: `S55 • Boston University • Game ${gameNumber ?? 1} of 9 • LG Assistant`,
     });
-    const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
     const playerRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId(customId('game-avail', game.id, 'available'))
-        .setLabel('🟢 Available')
+        .setLabel('✅ Available')
         .setStyle(ButtonStyle.Success), new ButtonBuilder()
         .setCustomId(customId('game-avail', game.id, 'unavailable'))
-        .setLabel('🔴 Out')
+        .setLabel('❌ Out')
         .setStyle(ButtonStyle.Danger), new ButtonBuilder()
         .setCustomId(customId('game-day-avail', game.id, 'available'))
-        .setLabel(`🟢 All ${dayName}`)
+        .setLabel(`✅ Available ${dayNamePlural}`)
         .setStyle(ButtonStyle.Success), new ButtonBuilder()
         .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-        .setLabel(`🔴 No ${dayName}`)
+        .setLabel(`❌ Unavailable ${dayNamePlural}`)
         .setStyle(ButtonStyle.Danger));
     const managerRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'code'))
-        .setLabel('Set Code')
+        .setLabel('🎮 Set Game Code')
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-        .setLabel('Set Lineup')
+        .setLabel('👥 Set Lineup')
         .setStyle(ButtonStyle.Primary));
     return {
         embeds: [embed],
