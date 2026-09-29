@@ -11,6 +11,7 @@ import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import {
   gameOpponentLabel,
   renderGame,
+  renderIndividualGamePost,
   renderManagementWeek,
   renderPlayerWeek,
   type ScheduleWeek,
@@ -80,6 +81,37 @@ export async function syncAvailabilityPost(
   } catch (err) {
     console.error('Failed to sync weekly availability post:', err);
     return null;
+  }
+}
+
+export async function syncSingleGamePost(
+  guildId: string,
+  gameId: string,
+  context: BotContext,
+  client: any,
+) {
+  try {
+    const game = await context.schedule.game(gameId);
+    if (!game) return;
+    const week = await context.schedule.getWeek(game.weekId);
+    if (!week) return;
+    const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+    const idx = activeGames.findIndex((g) => g.id === game.id);
+    const gameNumber = idx >= 0 ? idx + 1 : undefined;
+
+    const config = await context.config.ensure(guildId);
+    const channelId = config.teamAvailabilityChannelId || DEFAULT_AVAILABILITY_CHANNEL_ID;
+    const channel = (await client.channels.fetch(channelId).catch(() => null)) as TextChannel | null;
+    if (!channel?.isTextBased()) return;
+
+    if (game.notes) {
+      const msg = await channel.messages.fetch(game.notes).catch(() => null);
+      if (msg) {
+        await msg.edit(renderIndividualGamePost(game, gameNumber)).catch(() => null);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to sync single game post:', err);
   }
 }
 
@@ -264,6 +296,7 @@ export async function handleSetCode(
   if (week && week.messageId) {
     await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
   }
+  await syncSingleGamePost(interaction.guildId, targetGameId, context, interaction.client);
 
   await interaction.editReply({
     embeds: [

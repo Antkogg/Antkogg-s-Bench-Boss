@@ -198,43 +198,45 @@ export function renderIndividualGamePost(game, gameNumber) {
     const matchupSymbol = isAway ? '@' : 'VS';
     const opponentName = (game.opponentNameSnapshot ?? 'Opponent').toUpperCase();
     const venueLine = isAway
-        ? `✈️ **Away Game** ┃ BU @ ${opponentName}`
-        : `🏠 **Home Game** ┃ BU vs ${opponentName}`;
+        ? `Away @ ${opponentName}`
+        : `Home vs ${opponentName}`;
     const serverCodeValue = game.gameServer || game.gameCode
-        ? `\`${game.gameServer ?? 'TBD'}\` ┃ **Code:** \`${game.gameCode ?? 'TBD'}\``
+        ? `**Server:** \`${game.gameServer ?? 'TBD'}\`  ┃  **Code:** \`${game.gameCode ?? 'TBD'}\``
         : '`TBD`';
     const formatSlot = (pos) => {
         const assignment = game.lineup?.find((l) => l.position === pos);
-        const pad = pos.length === 1 ? ` ${pos}` : pos;
         if (assignment) {
-            const badge = assignment.confirmed ? '✅' : '▫️';
-            return `\`${pad}\` ${badge} <@${assignment.player.discordUserId}>`;
+            return `<@${assignment.player.discordUserId}>`;
         }
-        return `\`${pad}\` \` OPEN \``;
+        return '`Open`';
     };
-    const forwardsText = `${formatSlot('LW')}\n${formatSlot('C')}\n${formatSlot('RW')}`;
-    const defenseText = `${formatSlot('LD')}\n${formatSlot('RD')}\n${formatSlot('G')}`;
+    const forwardsText = `**LW:** ${formatSlot('LW')}\n` +
+        `**C:**  ${formatSlot('C')}\n` +
+        `**RW:** ${formatSlot('RW')}`;
+    const defenseText = `**LD:** ${formatSlot('LD')}\n` +
+        `**RD:** ${formatSlot('RD')}\n` +
+        `**G:**  ${formatSlot('G')}`;
     const availablePlayers = (game.responses ?? [])
         .filter((r) => r.status === 'AVAILABLE')
         .map((r) => {
         const p = r.submission.player;
         const pos = p.signupPositions?.length ? ` *(${p.signupPositions.join('/')})*` : '';
-        return `• <@${p.discordUserId}>${pos}`;
+        return `<@${p.discordUserId}>${pos}`;
     });
     const outPlayers = (game.responses ?? [])
         .filter((r) => r.status === 'UNAVAILABLE')
-        .map((r) => `• <@${r.submission.player.discordUserId}>`);
+        .map((r) => `<@${r.submission.player.discordUserId}>`);
     const embed = brandedEmbed(0xCC0000)
-        .setTitle(`🏒 GAME ${gameNumber ?? 1} ┃ ${matchupSymbol} ${opponentName}`)
-        .setDescription(`> ⏰ **Puck Drop:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
-        `> 🏟️ **Venue:** ${venueLine}\n` +
-        `> 🎮 **Server & Code:** ${serverCodeValue}`)
+        .setTitle(`GAME ${gameNumber ?? 1}: ${matchupSymbol} ${opponentName}`)
+        .setDescription(`**Time:** <t:${timeUnix}:t> • <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
+        `**Matchup:** ${venueLine}\n` +
+        `**Server & Code:** ${serverCodeValue}`)
         .addFields({
-        name: '⚔️ FORWARDS',
+        name: 'Starting Forwards',
         value: forwardsText,
         inline: true,
     }, {
-        name: '🛡️ DEFENSE & GOALIE',
+        name: 'Defense & Goalie',
         value: defenseText,
         inline: true,
     }, {
@@ -242,11 +244,11 @@ export function renderIndividualGamePost(game, gameNumber) {
         value: '\u200B',
         inline: true,
     }, {
-        name: `🟢 AVAILABLE (${availablePlayers.length})`,
+        name: `🟢 Available (${availablePlayers.length})`,
         value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None yet*',
         inline: true,
     }, {
-        name: `🔴 OUT (${outPlayers.length})`,
+        name: `🔴 Out (${outPlayers.length})`,
         value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
         inline: true,
     }, {
@@ -265,10 +267,10 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setLabel('🔴 Out')
         .setStyle(ButtonStyle.Danger), new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'code'))
-        .setLabel('🎮 Set Code')
+        .setLabel('Set Code')
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-        .setLabel('📋 Set Lineup')
+        .setLabel('Set Lineup')
         .setStyle(ButtonStyle.Primary));
     return {
         embeds: [embed],

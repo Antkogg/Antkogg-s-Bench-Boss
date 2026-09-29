@@ -5,7 +5,7 @@ import { localWeekday } from '../domain/schedule-time.js';
 import { publishAvailability } from '../commands/availability.js';
 import { requireManagement } from '../commands/authorization.js';
 import { renderGame, renderIndividualGamePost, renderManagementWeek } from '../renderers/schedule.renderer.js';
-import { parseScheduleLine, syncAvailabilityPost } from '../commands/schedule.js';
+import { parseScheduleLine, syncAvailabilityPost, syncSingleGamePost } from '../commands/schedule.js';
 import { renderSuccess } from '../renderers/design.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { customId } from '../utils/custom-id.js';
@@ -154,9 +154,10 @@ export async function handleLineupButton(interaction, context, parsed) {
         }
         await context.schedule.markConfirmationNotified(delivered);
         const week = await context.schedule.getWeek(game.weekId);
-        if (week) {
+        if (week && week.messageId) {
             await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
         }
+        await syncSingleGamePost(interaction.guildId, parsed.entityId, context, interaction.client);
         await interaction.update(renderGame(game, true));
         return;
     }
@@ -255,8 +256,11 @@ export async function handleLineupPlayerSelect(interaction, context, parsed) {
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
     const week = await context.schedule.getWeek(game.weekId);
-    if (week && interaction.guildId) {
+    if (week && week.messageId && interaction.guildId) {
         await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
+    if (interaction.guildId) {
+        await syncSingleGamePost(interaction.guildId, parsed.entityId, context, interaction.client);
     }
     await interaction.update({ content: `Lineup updated.${warning}`, ...renderGame(game, true) });
 }
@@ -304,8 +308,11 @@ export async function handleLineupUserSelect(interaction, context, parsed) {
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
     const week = await context.schedule.getWeek(game.weekId);
-    if (week && interaction.guildId) {
+    if (week && week.messageId && interaction.guildId) {
         await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    }
+    if (interaction.guildId) {
+        await syncSingleGamePost(interaction.guildId, parsed.entityId, context, interaction.client);
     }
     await interaction.update({
         content: `Lineup updated: added <@${member.user.id}> at **${position}**.`,

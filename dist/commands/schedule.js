@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, } from 'discord.js';
 import { DateTime } from 'luxon';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
-import { gameOpponentLabel, renderGame, renderManagementWeek, renderPlayerWeek, } from '../renderers/schedule.renderer.js';
+import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek, renderPlayerWeek, } from '../renderers/schedule.renderer.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { customId } from '../utils/custom-id.js';
@@ -59,6 +59,33 @@ export async function syncAvailabilityPost(guildId, week, context, client) {
     catch (err) {
         console.error('Failed to sync weekly availability post:', err);
         return null;
+    }
+}
+export async function syncSingleGamePost(guildId, gameId, context, client) {
+    try {
+        const game = await context.schedule.game(gameId);
+        if (!game)
+            return;
+        const week = await context.schedule.getWeek(game.weekId);
+        if (!week)
+            return;
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        const idx = activeGames.findIndex((g) => g.id === game.id);
+        const gameNumber = idx >= 0 ? idx + 1 : undefined;
+        const config = await context.config.ensure(guildId);
+        const channelId = config.teamAvailabilityChannelId || DEFAULT_AVAILABILITY_CHANNEL_ID;
+        const channel = (await client.channels.fetch(channelId).catch(() => null));
+        if (!channel?.isTextBased())
+            return;
+        if (game.notes) {
+            const msg = await channel.messages.fetch(game.notes).catch(() => null);
+            if (msg) {
+                await msg.edit(renderIndividualGamePost(game, gameNumber)).catch(() => null);
+            }
+        }
+    }
+    catch (err) {
+        console.error('Failed to sync single game post:', err);
     }
 }
 export async function handleAddGame(interaction, context) {
@@ -197,6 +224,7 @@ export async function handleSetCode(interaction, context) {
     if (week && week.messageId) {
         await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
     }
+    await syncSingleGamePost(interaction.guildId, targetGameId, context, interaction.client);
     await interaction.editReply({
         embeds: [
             renderSuccess('Server & Code Saved', `**${updatedGame.opponentNameSnapshot ?? 'Upcoming Game'}**\n` +

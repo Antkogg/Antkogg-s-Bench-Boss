@@ -171,7 +171,12 @@ async function executePostWeek(interaction, context, weekData) {
         channelMention = `<#${postChannel.id}>`;
         const activeGames = fullWeek.games.filter((g) => g.status !== 'CANCELLED');
         for (let i = 0; i < activeGames.length; i++) {
-            await postChannel.send(renderIndividualGamePost(activeGames[i], i + 1));
+            const g = activeGames[i];
+            const msg = await postChannel.send(renderIndividualGamePost(g, i + 1));
+            await context.prisma.weeklyGame.update({
+                where: { id: g.id },
+                data: { notes: msg.id },
+            });
         }
     }
     const embed = brandedEmbed()
