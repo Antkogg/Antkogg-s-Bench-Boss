@@ -195,16 +195,22 @@ export function renderGame(game, management, playerId) {
 export function renderIndividualGamePost(game, gameNumber) {
     const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
     const homeAwaySymbol = game.homeAway === 'AWAY' ? '@' : 'vs';
-    const locationTag = game.homeAway === 'AWAY' ? '✈️ **Away**' : '🏠 **Home**';
     const opponentName = game.opponentNameSnapshot ?? 'Opponent';
+    const venueDetail = game.homeAway === 'AWAY'
+        ? `✈️ **Away Game** • Boston University @ ${opponentName}`
+        : `🏠 **Home Game** • Boston University vs ${opponentName}`;
     const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
     const lineupMap = new Map();
     for (const pos of positions) {
         const assignment = game.lineup?.find((l) => l.position === pos);
         lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '`Open`');
     }
-    const forwardLine = `**LW** ${lineupMap.get('LW')}  •  **C** ${lineupMap.get('C')}  •  **RW** ${lineupMap.get('RW')}`;
-    const defenseLine = `**LD** ${lineupMap.get('LD')}  •  **RD** ${lineupMap.get('RD')}  •  **G** ${lineupMap.get('G')}`;
+    const forwardsText = `**LW:** ${lineupMap.get('LW')}\n` +
+        `**C:**  ${lineupMap.get('C')}\n` +
+        `**RW:** ${lineupMap.get('RW')}`;
+    const defenseText = `**LD:** ${lineupMap.get('LD')}\n` +
+        `**RD:** ${lineupMap.get('RD')}\n` +
+        `**G:**  ${lineupMap.get('G')}`;
     const availablePlayers = (game.responses ?? [])
         .filter((r) => r.status === 'AVAILABLE')
         .map((r) => {
@@ -220,16 +226,21 @@ export function renderIndividualGamePost(game, gameNumber) {
         : '`TBD`';
     const embed = brandedEmbed()
         .setTitle(`🏒 GAME ${gameNumber ?? 1}: ${homeAwaySymbol === '@' ? '@' : 'VS'} ${opponentName.toUpperCase()}`)
-        .setDescription(`⏰ **<t:${timeUnix}:t>** • 📅 **<t:${timeUnix}:D>** (<t:${timeUnix}:R>)\n` +
-        `${locationTag}`)
+        .setDescription(`⏰ **Puck Drop:** <t:${timeUnix}:t> • 📅 **Date:** <t:${timeUnix}:D> (<t:${timeUnix}:R>)\n` +
+        `🏟️ **Matchup:** ${venueDetail}\n` +
+        `🎮 **Server & Code:** ${serverCodeValue}`)
         .addFields({
-        name: '🎮 Server & Code',
-        value: serverCodeValue,
-        inline: false,
+        name: '🏒 Starting Forwards',
+        value: forwardsText,
+        inline: true,
     }, {
-        name: '📋 Starting Lineup',
-        value: `${forwardLine}\n${defenseLine}`,
-        inline: false,
+        name: '🛡️ Defense & Goalie',
+        value: defenseText,
+        inline: true,
+    }, {
+        name: '\u200B',
+        value: '\u200B',
+        inline: true,
     }, {
         name: `🟢 Available (${availablePlayers.length})`,
         value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None yet*',
@@ -237,6 +248,10 @@ export function renderIndividualGamePost(game, gameNumber) {
     }, {
         name: `🔴 Out (${outPlayers.length})`,
         value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
+        inline: true,
+    }, {
+        name: '\u200B',
+        value: '\u200B',
         inline: true,
     })
         .setFooter({
