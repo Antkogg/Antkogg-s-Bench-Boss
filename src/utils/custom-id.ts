@@ -46,6 +46,7 @@ const actionSchema = z.enum([
   'modal-quick-game',
   'post-week-btn',
   'post-week-select',
+  'game-avail',
 ]);
 
 export type ComponentAction = z.infer<typeof actionSchema>;

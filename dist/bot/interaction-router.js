@@ -14,7 +14,7 @@ import { waitlistPrompt, handleButton } from '../interactions/buttons.js';
 import { handleManagementModal, handleRegistrationModal } from '../interactions/modals.js';
 import { handleSelectMenu } from '../interactions/select-menus.js';
 import { handleAvailabilityReminderButton, handleWeeklyAvailabilityButton, handleWeeklyAvailabilitySelect, } from '../interactions/weekly-availability.js';
-import { handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handlePlayerGameButton, handleQuickGameModal, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
+import { handleGameAvailButton, handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handlePlayerGameButton, handleQuickGameModal, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
 import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
 import { AppError, publicErrorMessage } from '../utils/errors.js';
@@ -106,6 +106,8 @@ export async function routeInteraction(interaction, context) {
                 await handleRosterModalButton(interaction, context, parsed);
             else if (parsed.action === 'post-week-btn')
                 await handlePostWeekInteraction(interaction, context, parsed);
+            else if (parsed.action === 'game-avail')
+                await handleGameAvailButton(interaction, context, parsed);
             else if (parsed.action === 'player-game')
                 await handlePlayerGameButton(interaction, context, parsed);
             else

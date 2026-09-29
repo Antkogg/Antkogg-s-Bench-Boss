@@ -204,10 +204,16 @@ export async function handleSetCode(
     const currentWeek = await context.schedule.currentWeek(interaction.guildId);
     const activeGames = currentWeek?.games.filter((g) => g.status !== 'CANCELLED') ?? [];
     const num = parseInt(gameQuery, 10);
-    if (!isNaN(num) && num >= 1 && num <= activeGames.length) {
+    if (!isNaN(num) && num >= 1 && num <= activeGames.length && !gameQuery.startsWith('c')) {
       targetGameId = activeGames[num - 1]?.id;
     } else {
-      targetGameId = gameQuery;
+      const found = activeGames.find(
+        (g) =>
+          g.id.toLowerCase() === gameQuery.toLowerCase() ||
+          g.id.toLowerCase().includes(gameQuery.toLowerCase()) ||
+          g.opponentNameSnapshot?.toLowerCase().includes(gameQuery.toLowerCase()),
+      );
+      targetGameId = found?.id ?? gameQuery;
     }
   } else {
     const nearest = await context.schedule.nearestGame(interaction.guildId);

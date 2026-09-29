@@ -23,7 +23,7 @@ import { localWeekday } from '../domain/schedule-time.js';
 import { publishAvailability } from '../commands/availability.js';
 import { requireManagement } from '../commands/authorization.js';
 import type { BotContext } from '../commands/context.js';
-import { renderGame, renderManagementWeek } from '../renderers/schedule.renderer.js';
+import { renderGame, renderIndividualGamePost, renderManagementWeek } from '../renderers/schedule.renderer.js';
 import { parseScheduleLine, syncAvailabilityPost } from '../commands/schedule.js';
 import { renderSuccess } from '../renderers/design.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
@@ -507,6 +507,90 @@ export async function handlePlayerGameButton(
     ...(interaction.inGuild() ? { ephemeral: true as const } : {}),
     ...renderGame(game, false, assignment.playerId),
   });
+}
+
+export async function handleGameAvailButton(
+  interaction: ButtonInteraction,
+  context: BotContext,
+  parsed: ParsedCustomId,
+) {
+  if (!interaction.guildId || !interaction.guild)
+    throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+
+  const config = await context.config.get(interaction.guildId);
+  const configuredRoleId = config?.rosterRoleId ?? DEFAULT_TEAM_ROLE_ID;
+  const s55Role = interaction.guild.roles.cache.find(
+    (r) =>
+      r.id === configuredRoleId ||
+      r.name.toLowerCase().includes('s55 bu') ||
+      r.name.toLowerCase().includes('roster'),
+  );
+  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const hasRole =
+    member.roles.cache.has(configuredRoleId) ||
+    (s55Role && member.roles.cache.has(s55Role.id)) ||
+    member.roles.cache.some((r) => r.name.toLowerCase().includes('s55 bu'));
+
+  if (!hasRole) {
+    throw new AppError('NOT_ALLOWED', 'Only players with the S55 BU team role can submit availability.');
+  }
+
+  const game = await context.schedule.game(parsed.entityId);
+  if (!game) throw new AppError('NOT_FOUND', 'Game not found.');
+
+  const player = await context.players.byDiscordId(
+    interaction.guildId,
+    member.user.id,
+    member.displayName ?? member.user.username,
+    member.user.displayAvatarURL(),
+  );
+
+  const status = parsed.value === 'available' ? 'AVAILABLE' : 'UNAVAILABLE';
+
+  await context.prisma.$transaction(async (tx) => {
+    const submission = await tx.weeklyAvailabilitySubmission.upsert({
+      where: {
+        weekId_playerId: {
+          weekId: game.weekId,
+          playerId: player.id,
+        },
+      },
+      create: {
+        weekId: game.weekId,
+        playerId: player.id,
+      },
+      update: {
+        submittedAt: new Date(),
+      },
+    });
+
+    await tx.playerGameAvailability.upsert({
+      where: {
+        submissionId_gameId: {
+          submissionId: submission.id,
+          gameId: game.id,
+        },
+      },
+      create: {
+        submissionId: submission.id,
+        gameId: game.id,
+        status,
+      },
+      update: {
+        status,
+      },
+    });
+  });
+
+  const updatedGame = await context.schedule.game(game.id);
+  if (!updatedGame) throw new AppError('NOT_FOUND', 'Game not found.');
+
+  const week = await context.schedule.getWeek(game.weekId);
+  const activeGames = week?.games.filter((g) => g.status !== 'CANCELLED') ?? [];
+  const gameIndex = activeGames.findIndex((g) => g.id === game.id);
+  const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
+
+  await interaction.update(renderIndividualGamePost(updatedGame, gameNumber));
 }
 
 export async function handleGameCodeModal(

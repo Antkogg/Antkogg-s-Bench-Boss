@@ -4,6 +4,7 @@ import { requireManagement } from './authorization.js';
 import { OFFICIAL_SCHEDULE } from '../config/official-schedule.js';
 import { syncAvailabilityPost } from './schedule.js';
 import { brandedEmbed } from '../renderers/design.js';
+import { renderIndividualGamePost } from '../renderers/schedule.renderer.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 export async function handlePostWeek(interaction, context) {
@@ -168,6 +169,10 @@ async function executePostWeek(interaction, context, weekData) {
         const postChannel = await syncAvailabilityPost(guildId, fullWeek, context, interaction.client);
         if (postChannel) {
             channelMention = `<#${postChannel.id}>`;
+            const activeGames = fullWeek.games.filter((g) => g.status !== 'CANCELLED');
+            for (let i = 0; i < activeGames.length; i++) {
+                await postChannel.send(renderIndividualGamePost(activeGames[i], i + 1));
+            }
         }
     }
     const embed = brandedEmbed()

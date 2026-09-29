@@ -279,3 +279,80 @@ export function renderGame(
       : [],
   };
 }
+
+export function renderIndividualGamePost(
+  game: WeeklyGame & {
+    lineup?: Array<GameLineupAssignment & { player: Player }>;
+    responses?: Array<{
+      status: string;
+      submission: { player: Player };
+    }>;
+  },
+  gameNumber?: number,
+) {
+  const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
+  const homeAwayText = game.homeAway === 'AWAY' ? 'Away @' : 'Home vs';
+  const prefix = gameNumber ? `GAME ${gameNumber}: ` : '';
+
+  const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const;
+  const lineupParts = positions.map((pos) => {
+    const assignment = game.lineup?.find((l) => l.position === pos);
+    return assignment
+      ? `**${pos}:** <@${assignment.player.discordUserId}>`
+      : `**${pos}:** *Open*`;
+  });
+  const forwards = lineupParts.slice(0, 3).join(' | ');
+  const defenseGoalie = lineupParts.slice(3).join(' | ');
+
+  const availablePlayers = (game.responses ?? [])
+    .filter((r) => r.status === 'AVAILABLE')
+    .map((r) => {
+      const p = r.submission.player;
+      const pos = p.signupPositions?.length ? ` (${p.signupPositions.join('/')})` : '';
+      return `<@${p.discordUserId}>${pos}`;
+    });
+
+  const outPlayers = (game.responses ?? [])
+    .filter((r) => r.status === 'UNAVAILABLE')
+    .map((r) => `<@${r.submission.player.discordUserId}>`);
+
+  const serverCode =
+    game.gameServer || game.gameCode
+      ? `🎮 **Server:** \`${game.gameServer ?? 'TBD'}\` • **Code:** \`${game.gameCode ?? 'TBD'}\``
+      : '🎮 **Server & Code:** *Not set yet (Management: click button below on game day)*';
+
+  const embed = brandedEmbed()
+    .setTitle(`🏒 ${prefix}${homeAwayText.toUpperCase()} ${game.opponentNameSnapshot?.toUpperCase() ?? 'OPPONENT'}`)
+    .setDescription(
+      `🆔 **Game ID:** \`${game.id}\` *(Use with \`/set-code\` or click button below)*\n` +
+      `⏰ **Time:** <t:${timeUnix}:F> (<t:${timeUnix}:R>)\n` +
+      `${serverCode}\n\n` +
+      `📋 **Lineup Starters:**\n${forwards}\n${defenseGoalie}\n\n` +
+      `🟢 **Available (${availablePlayers.length}):** ${availablePlayers.length ? availablePlayers.join(', ') : '*None yet*'}\n` +
+      `🔴 **Out (${outPlayers.length}):** ${outPlayers.length ? outPlayers.join(', ') : '*None*'}`,
+    );
+
+  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('game-avail', game.id, 'available'))
+      .setLabel('🟢 Available')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(customId('game-avail', game.id, 'unavailable'))
+      .setLabel('🔴 Out')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(customId('game-action', game.id, 'code'))
+      .setLabel('🎮 Set Server / Code')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(customId('lineup-action', game.id, 'choose-game'))
+      .setLabel('📋 Set Lineup')
+      .setStyle(ButtonStyle.Primary),
+  );
+
+  return {
+    embeds: [embed],
+    components: [buttonRow],
+  };
+}
