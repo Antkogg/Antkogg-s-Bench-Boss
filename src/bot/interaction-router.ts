@@ -2,6 +2,9 @@ import type { Interaction } from 'discord.js';
 import {
   handleBoard,
   handlePlayerSearch,
+  handleRosterModalButton,
+  handleRosterModalSubmit,
+  handleRosterNavButton,
   handleRosterPlayerSelect,
   handleRosterSetPosButton,
   handleSetPosition,
@@ -109,6 +112,12 @@ export async function routeInteraction(
         await handleGameButton(interaction, context, parsed);
       else if (parsed.action === 'roster-set-pos')
         await handleRosterSetPosButton(interaction, context, parsed);
+      else if (parsed.action === 'roster-prev')
+        await handleRosterNavButton(interaction, context, parsed, 'prev');
+      else if (parsed.action === 'roster-next')
+        await handleRosterNavButton(interaction, context, parsed, 'next');
+      else if (parsed.action === 'roster-modal-btn')
+        await handleRosterModalButton(interaction, context, parsed);
       else if (parsed.action === 'player-game')
         await handlePlayerGameButton(interaction, context, parsed);
       else await handleButton(interaction, context, parsed);
@@ -148,6 +157,8 @@ export async function routeInteraction(
         await handleWeekDayModal(interaction, context, parsed);
       else if (parsed.action === 'modal-game-code')
         await handleGameCodeModal(interaction, context, parsed);
+      else if (parsed.action === 'modal-roster-positions')
+        await handleRosterModalSubmit(interaction, context, parsed);
       return;
     }
     if (interaction.isAutocomplete()) {

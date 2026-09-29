@@ -38,6 +38,10 @@ const actionSchema = z.enum([
     'welcome-mode',
     'roster-player-select',
     'roster-set-pos',
+    'roster-prev',
+    'roster-next',
+    'roster-modal-btn',
+    'modal-roster-positions',
 ]);
 export function customId(action, entityId, value) {
     const id = ['bb', action, entityId, value].filter(Boolean).join(':');

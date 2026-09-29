@@ -2,11 +2,15 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ModalBuilder,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Guild,
   type GuildMember,
+  type ModalSubmitInteraction,
   type Role,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -208,104 +212,294 @@ export async function handleSetPosition(
 export async function getTeamMembersWithRole(
   guild: Guild,
   configRole?: string | null,
+  forceFetch = false,
 ): Promise<{ role: Role; members: GuildMember[] }> {
-  await guild.roles.fetch().catch(() => null);
+  if (!guild.roles.cache.size || forceFetch) {
+    await guild.roles.fetch().catch(() => null);
+  }
 
-  const role =
+  let role =
     guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
     guild.roles.cache.get(configRole ?? '') ??
     guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
 
   if (!role) {
+    await guild.roles.fetch().catch(() => null);
+    role =
+      guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+      guild.roles.cache.get(configRole ?? '') ??
+      guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+  }
+
+  if (!role) {
     throw new AppError('NOT_FOUND', 'Could not find the "S55 BU" team role in this server.');
   }
 
-  // Always fetch full guild members list to ensure all players with the role are included
-  const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
-  const members = Array.from(
-    allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values(),
+  let members = Array.from(
+    guild.members.cache.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
   );
 
+  // If forceFetch requested or no members are currently cached, fetch all guild members from Discord API
+  if (forceFetch || members.length === 0) {
+    const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
+    members = Array.from(
+      allMembers.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
+    );
+  }
+
   return { role, members };
+}
+
+export async function loadPlayerRows(
+  guildId: string,
+  members: GuildMember[],
+  context: BotContext,
+): Promise<Array<{ member: GuildMember; player: Player }>> {
+  return Promise.all(
+    members.map(async (member) => {
+      const player = await context.players.byDiscordId(
+        guildId,
+        member.id,
+        member.displayName || member.user.username,
+        member.user.displayAvatarURL(),
+      );
+      return { member, player };
+    }),
+  );
 }
 
 export function renderRosterPositionsPanel(
   roleId: string,
   playerRows: Array<{ member: GuildMember; player: Player }>,
   selectedMemberId?: string,
+  notice?: string,
 ) {
   const unsetCount = playerRows.filter((p) => p.player.signupPositions.length === 0).length;
+  const configuredCount = playerRows.length - unsetCount;
+
+  // Determine active member to display in the wizard
+  let activeMemberId = selectedMemberId;
+  if (!activeMemberId || !playerRows.some((p) => p.member.id === activeMemberId)) {
+    const firstUnset = playerRows.find((p) => p.player.signupPositions.length === 0);
+    activeMemberId = firstUnset ? firstUnset.member.id : playerRows[0]?.member.id;
+  }
+
+  const activeIndex = playerRows.findIndex((p) => p.member.id === activeMemberId);
+  const active = playerRows[activeIndex >= 0 ? activeIndex : 0];
+
   const embed = brandedEmbed()
-    .setTitle(`S55 BU ROSTER POSITIONS (${playerRows.length} Players)`)
+    .setTitle(`🏒 S55 BU ROSTER POSITIONS (${configuredCount}/${playerRows.length} Set)`)
     .setDescription(
-      `Role: <@&${roleId}> • **${playerRows.length - unsetCount}/${playerRows.length}** positions configured.\n` +
-        `Choose a player from the dropdown below to set their position with one click!\n` +
-        `*(Positions determine whether players show as Forwards, Defense, or Goalies for availability)*`,
-    )
-    .addFields(
-      {
-        name: '👥 ROSTER & POSITIONS',
-        value: playerRows
-          .map(
-            ({ member, player }, i) =>
-              `${i + 1}. <@${member.id}> • **${player.signupPositions.join('/') || '⚠️ NOT SET'}**`,
-          )
-          .join('\n')
-          .slice(0, 1024),
-      },
-      {
-        name: '📋 BULK COPY TEMPLATE',
-        value:
-          '```\n' +
-          playerRows
-            .map(({ member, player }) => `<@${member.id}> ${player.signupPositions[0] ?? 'C'}`)
-            .join('\n')
-            .slice(0, 1000) +
-          '\n```\n*You can also copy this list, change the letters, and run `/set-positions roster:`.*',
-      },
+      (notice ? `${notice}\n\n` : '') +
+        (active
+          ? `👉 **NOW SETTING: Player ${activeIndex + 1} of ${playerRows.length}**\n` +
+            `👤 <@${active.member.id}> (**${active.member.displayName}**)\n` +
+            `Current Position: **${active.player.signupPositions.join('/') || '⚠️ NOT SET'}**\n\n` +
+            `*(Click any position button below to assign and **auto-advance** to the next player!)*`
+          : 'No players found.'),
     );
 
+  if (playerRows.length) {
+    const rosterLines = playerRows.slice(0, 25).map(({ member, player }, i) => {
+      const pos = player.signupPositions.join('/') || '⚠️ NOT SET';
+      const isActive = active && member.id === active.member.id;
+      return `${i + 1}. <@${member.id}> • **${pos}**${isActive ? ' 👈 **(ACTIVE)**' : ''}`;
+    });
+    if (playerRows.length > 25) {
+      rosterLines.push(`*...and ${playerRows.length - 25} more players*`);
+    }
+
+    embed.addFields({
+      name: '👥 TEAM ROSTER',
+      value: rosterLines.join('\n').slice(0, 1024),
+    });
+  }
+
+  if (!active) {
+    return { embeds: [embed], components: [] };
+  }
+
+  // Row 1: Forward buttons (Max 3 buttons)
+  const forwardRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    (['LW', 'C', 'RW'] as const).map((pos) =>
+      new ButtonBuilder()
+        .setCustomId(customId('roster-set-pos', active.member.id, pos))
+        .setLabel(`🏒 ${pos}`)
+        .setStyle(
+          active.player.signupPositions.includes(pos)
+            ? ButtonStyle.Success
+            : ButtonStyle.Primary,
+        ),
+    ),
+  );
+
+  // Row 2: Defense & Goalie buttons (Max 3 buttons)
+  const defGoalieRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    (['LD', 'RD', 'G'] as const).map((pos) =>
+      new ButtonBuilder()
+        .setCustomId(customId('roster-set-pos', active.member.id, pos))
+        .setLabel(pos === 'G' ? `🥅 ${pos}` : `🛡️ ${pos}`)
+        .setStyle(
+          active.player.signupPositions.includes(pos)
+            ? ButtonStyle.Success
+            : ButtonStyle.Secondary,
+        ),
+    ),
+  );
+
+  // Row 3: Navigation & Fast Edit Modal (Max 3 buttons)
+  const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(customId('roster-prev', active.member.id))
+      .setLabel('◀ Prev')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(customId('roster-next', active.member.id))
+      .setLabel('Skip / Next ▶')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(customId('roster-modal-btn', roleId))
+      .setLabel('⚡ Bulk Paste / Edit')
+      .setStyle(ButtonStyle.Success),
+  );
+
+  // Row 4: Select Menu for jumping directly to any player (1 component)
   const selectMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(customId('roster-player-select', roleId))
-      .setPlaceholder(
-        selectedMemberId
-          ? `Selected: ${playerRows.find((p) => p.member.id === selectedMemberId)?.member.displayName ?? 'Player'}`
-          : 'Choose a player to assign a position...',
-      )
+      .setPlaceholder(`Jump to player... (Now: ${active.member.displayName})`)
       .addOptions(
         playerRows.slice(0, 25).map(({ member, player }) => ({
           label: (member.displayName || member.user.username).slice(0, 100),
           value: member.id,
           description: `Current: ${player.signupPositions.join('/') || 'Not set'}`,
-          default: member.id === selectedMemberId,
+          default: member.id === active.member.id,
         })),
       ),
   );
 
-  const components: Array<ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>> = [selectMenu];
+  return {
+    embeds: [embed],
+    components: [forwardRow, defGoalieRow, navRow, selectMenu],
+  };
+}
 
-  if (selectedMemberId) {
-    const forwardRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      (['LW', 'C', 'RW'] as const).map((pos) =>
-        new ButtonBuilder()
-          .setCustomId(customId('roster-set-pos', selectedMemberId, pos))
-          .setLabel(pos)
-          .setStyle(ButtonStyle.Primary),
-      ),
+const VALID_SIGNUP_POSITIONS = new Set<SignupPosition>(['LW', 'C', 'RW', 'LD', 'RD', 'G']);
+
+export async function applyRosterLines(
+  guild: Guild,
+  context: BotContext,
+  rawRoster: string,
+): Promise<{ results: string[]; errors: string[] }> {
+  const lines = rawRoster.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+  const results: string[] = [];
+  const errors: string[] = [];
+
+  for (const line of lines) {
+    const cleanTokens = line
+      .replace(/[():\-–—,]/g, ' ')
+      .split(/\s+/)
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+
+    let foundPos: SignupPosition | undefined;
+    let foundPosIndex = -1;
+    for (let i = cleanTokens.length - 1; i >= 0; i--) {
+      if (VALID_SIGNUP_POSITIONS.has(cleanTokens[i] as SignupPosition)) {
+        foundPos = cleanTokens[i] as SignupPosition;
+        foundPosIndex = i;
+        break;
+      }
+    }
+
+    if (!foundPos) {
+      errors.push(`Could not find a valid position in: \`${line}\``);
+      continue;
+    }
+
+    const mentionMatch = line.match(/<@!?(\d+)>/);
+    let discordUserId: string | null = mentionMatch ? mentionMatch[1]! : null;
+
+    if (!discordUserId) {
+      const idToken = cleanTokens.find((t) => /^\d{17,20}$/.test(t));
+      if (idToken) discordUserId = idToken;
+    }
+
+    if (discordUserId) {
+      try {
+        let displayName = discordUserId;
+        const cachedMember = guild.members.cache.get(discordUserId);
+        if (cachedMember) {
+          displayName = cachedMember.displayName || cachedMember.user.username;
+        } else {
+          try {
+            const member = await guild.members.fetch(discordUserId);
+            displayName = member.displayName || member.user.username;
+          } catch {
+            // ignore fetch error
+          }
+        }
+
+        await context.players.updatePositions(
+          guild.id,
+          discordUserId,
+          [foundPos],
+          displayName,
+        );
+        results.push(`<@${discordUserId}> → **${foundPos}**`);
+      } catch (err) {
+        errors.push(`Failed for <@${discordUserId}>: ${(err as Error).message}`);
+      }
+      continue;
+    }
+
+    const nameTokens = cleanTokens.filter(
+      (t, idx) => idx !== foundPosIndex && !/^\d+\.?$/.test(t),
     );
-    const defGoalieRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      (['LD', 'RD', 'G'] as const).map((pos) =>
-        new ButtonBuilder()
-          .setCustomId(customId('roster-set-pos', selectedMemberId, pos))
-          .setLabel(pos)
-          .setStyle(pos === 'G' ? ButtonStyle.Success : ButtonStyle.Secondary),
-      ),
+    const query = nameTokens.join(' ').trim();
+    if (!query) {
+      errors.push(`No player name found in: \`${line}\``);
+      continue;
+    }
+
+    const memberMatch = Array.from(guild.members.cache.values()).find(
+      (m) =>
+        m.displayName.toLowerCase() === query.toLowerCase() ||
+        m.user.username.toLowerCase() === query.toLowerCase() ||
+        m.displayName.toLowerCase().includes(query.toLowerCase()),
     );
-    components.push(forwardRow, defGoalieRow);
+
+    if (memberMatch) {
+      try {
+        await context.players.updatePositions(
+          guild.id,
+          memberMatch.id,
+          [foundPos],
+          memberMatch.displayName || memberMatch.user.username,
+        );
+        results.push(`<@${memberMatch.id}> (${memberMatch.displayName}) → **${foundPos}**`);
+      } catch (err) {
+        errors.push(`Failed for ${memberMatch.displayName}: ${(err as Error).message}`);
+      }
+      continue;
+    }
+
+    const matches = await context.players.search(guild.id, query);
+    if (matches.length > 0) {
+      const p = matches[0]!;
+      await context.players.updatePositions(
+        guild.id,
+        p.discordUserId,
+        [foundPos],
+        p.discordDisplayName,
+      );
+      results.push(`\`${p.eaTag}\` (<@${p.discordUserId}>) → **${foundPos}**`);
+    } else {
+      errors.push(`Player not found for: \`${query}\``);
+    }
   }
 
-  return { embeds: [embed], components };
+  return { results, errors };
 }
 
 export async function handleSetPositions(
@@ -320,95 +514,22 @@ export async function handleSetPositions(
   const rawRoster = interaction.options.getString('roster')?.trim();
   if (!rawRoster) {
     const config = await context.config.ensure(interaction.guildId);
-    const { role, members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId);
+    const { role, members } = await getTeamMembersWithRole(
+      interaction.guild,
+      config.rosterRoleId,
+      true,
+    );
     if (!members.length) {
       throw new AppError('NOT_FOUND', `No members found with role <@&${role.id}>.`);
     }
 
-    const playerRows = await Promise.all(
-      members.map(async (member) => {
-        const player = await context.players.byDiscordId(
-          interaction.guildId!,
-          member.id,
-          member.displayName || member.user.username,
-          member.user.displayAvatarURL(),
-        );
-        return { member, player };
-      }),
-    );
-
+    const playerRows = await loadPlayerRows(interaction.guildId, members, context);
     const panel = renderRosterPositionsPanel(role.id, playerRows);
     await interaction.editReply(panel);
     return;
   }
 
-  const lines = rawRoster.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
-
-  const results: string[] = [];
-  const errors: string[] = [];
-
-  const validPositions = new Set<string>(['LW', 'C', 'RW', 'LD', 'RD', 'G']);
-
-  for (const line of lines) {
-    const mentionMatch = line.match(/<@!?(\d+)>/);
-    let discordUserId: string | null = mentionMatch ? mentionMatch[1]! : null;
-
-    const tokens = line.split(/[:\s,]+/).map((t) => t.trim().toUpperCase());
-    const foundPos = tokens.find((t) => validPositions.has(t)) as SignupPosition | undefined;
-
-    if (!foundPos) {
-      errors.push(`Could not find a valid position in: \`${line}\``);
-      continue;
-    }
-
-    if (!discordUserId) {
-      const idToken = tokens.find((t) => /^\d{17,20}$/.test(t));
-      if (idToken) {
-        discordUserId = idToken;
-      }
-    }
-
-    if (discordUserId) {
-      try {
-        let displayName = discordUserId;
-        try {
-          const member = await interaction.guild.members.fetch(discordUserId);
-          displayName = member.displayName || member.user.username;
-        } catch {
-          // ignore fetch error
-        }
-        await context.players.updatePositions(
-          interaction.guildId,
-          discordUserId,
-          [foundPos],
-          displayName,
-        );
-        results.push(`<@${discordUserId}> → **${foundPos}**`);
-      } catch (err) {
-        errors.push(`Failed for <@${discordUserId}>: ${(err as Error).message}`);
-      }
-    } else {
-      const searchTerms = tokens.filter((t) => t !== foundPos && !validPositions.has(t));
-      const query = searchTerms.join(' ').trim();
-      if (!query) {
-        errors.push(`No player identifier in: \`${line}\``);
-        continue;
-      }
-      const matches = await context.players.search(interaction.guildId, query);
-      if (matches.length > 0) {
-        const p = matches[0]!;
-        await context.players.updatePositions(
-          interaction.guildId,
-          p.discordUserId,
-          [foundPos],
-          p.discordDisplayName,
-        );
-        results.push(`\`${p.eaTag}\` (<@${p.discordUserId}>) → **${foundPos}**`);
-      } else {
-        errors.push(`Player not found for: \`${query}\``);
-      }
-    }
-  }
+  const { results, errors } = await applyRosterLines(interaction.guild, context, rawRoster);
 
   const embed = brandedEmbed()
     .setTitle('ROSTER POSITIONS UPDATED')
@@ -425,9 +546,7 @@ export async function handleSetPositions(
     });
   }
 
-  await interaction.editReply({
-    embeds: [embed],
-  });
+  await interaction.editReply({ embeds: [embed] });
 }
 
 export async function handleRosterPlayerSelect(
@@ -438,25 +557,16 @@ export async function handleRosterPlayerSelect(
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
   await requireManagement(interaction, context);
+  await interaction.deferUpdate();
 
   const roleId = parsed.entityId;
   const selectedMemberId = interaction.values[0]!;
   const config = await context.config.ensure(interaction.guildId);
-  const { members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId);
-
-  const playerRows: Array<{ member: GuildMember; player: Player }> = [];
-  for (const member of members) {
-    const player = await context.players.byDiscordId(
-      interaction.guildId,
-      member.id,
-      member.displayName || member.user.username,
-      member.user.displayAvatarURL(),
-    );
-    playerRows.push({ member, player });
-  }
+  const { members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId, false);
+  const playerRows = await loadPlayerRows(interaction.guildId, members, context);
 
   const panel = renderRosterPositionsPanel(roleId, playerRows, selectedMemberId);
-  await interaction.update(panel);
+  await interaction.editReply(panel);
 }
 
 export async function handleRosterSetPosButton(
@@ -467,16 +577,15 @@ export async function handleRosterSetPosButton(
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
   await requireManagement(interaction, context);
+  await interaction.deferUpdate();
 
   const targetUserId = parsed.entityId;
   const position = parsed.value as SignupPosition;
 
   let displayName = targetUserId;
-  try {
-    const member = await interaction.guild.members.fetch(targetUserId);
-    displayName = member.displayName || member.user.username;
-  } catch {
-    // ignore
+  const cachedMember = interaction.guild.members.cache.get(targetUserId);
+  if (cachedMember) {
+    displayName = cachedMember.displayName || cachedMember.user.username;
   }
 
   await context.players.updatePositions(
@@ -487,19 +596,110 @@ export async function handleRosterSetPosButton(
   );
 
   const config = await context.config.ensure(interaction.guildId);
-  const { role, members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId);
+  const { role, members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId, false);
+  const playerRows = await loadPlayerRows(interaction.guildId, members, context);
 
-  const playerRows: Array<{ member: GuildMember; player: Player }> = [];
-  for (const member of members) {
-    const player = await context.players.byDiscordId(
-      interaction.guildId,
-      member.id,
-      member.displayName || member.user.username,
-      member.user.displayAvatarURL(),
+  // Automatically advance to the next player
+  const currentIndex = playerRows.findIndex((p) => p.member.id === targetUserId);
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % playerRows.length : 0;
+  const nextMemberId = playerRows[nextIndex]?.member.id;
+
+  const notice = `✅ Saved <@${targetUserId}> as **${position}**!`;
+  const panel = renderRosterPositionsPanel(role.id, playerRows, nextMemberId, notice);
+  await interaction.editReply(panel);
+}
+
+export async function handleRosterNavButton(
+  interaction: ButtonInteraction,
+  context: BotContext,
+  parsed: ParsedCustomId,
+  direction: 'prev' | 'next',
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild)
+    throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+  await requireManagement(interaction, context);
+  await interaction.deferUpdate();
+
+  const currentMemberId = parsed.entityId;
+  const config = await context.config.ensure(interaction.guildId);
+  const { role, members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId, false);
+  const playerRows = await loadPlayerRows(interaction.guildId, members, context);
+
+  const currentIndex = playerRows.findIndex((p) => p.member.id === currentMemberId);
+  const newIndex =
+    direction === 'prev'
+      ? (currentIndex - 1 + playerRows.length) % playerRows.length
+      : (currentIndex + 1) % playerRows.length;
+
+  const nextMemberId = playerRows[newIndex]?.member.id;
+  const panel = renderRosterPositionsPanel(role.id, playerRows, nextMemberId);
+  await interaction.editReply(panel);
+}
+
+export async function handleRosterModalButton(
+  interaction: ButtonInteraction,
+  context: BotContext,
+  parsed: ParsedCustomId,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild)
+    throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+  await requireManagement(interaction, context);
+
+  const roleId = parsed.entityId;
+  const config = await context.config.ensure(interaction.guildId);
+  const { members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId, false);
+  const playerRows = await loadPlayerRows(interaction.guildId, members, context);
+
+  const prefill = playerRows
+    .map(
+      ({ member, player }) =>
+        `<@${member.id}> ${player.signupPositions[0] ?? 'C'}`,
+    )
+    .join('\n');
+
+  const modal = new ModalBuilder()
+    .setCustomId(customId('modal-roster-positions', roleId))
+    .setTitle('Bulk Set Roster Positions')
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('rosterText')
+          .setLabel('Roster & Positions (one per line)')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('<@user_id> C\nAntkogg LW\nPlayer2 RD')
+          .setValue(prefill.slice(0, 4000))
+          .setRequired(true),
+      ),
     );
-    playerRows.push({ member, player });
+
+  await interaction.showModal(modal);
+}
+
+export async function handleRosterModalSubmit(
+  interaction: ModalSubmitInteraction,
+  context: BotContext,
+  parsed: ParsedCustomId,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild)
+    throw new AppError('NOT_ALLOWED', 'Use this command inside the server.');
+  await requireManagement(interaction, context);
+  await interaction.deferUpdate();
+
+  const rawText = interaction.fields.getTextInputValue('rosterText');
+  const { results, errors } = await applyRosterLines(interaction.guild, context, rawText);
+
+  const roleId = parsed.entityId;
+  const config = await context.config.ensure(interaction.guildId);
+  const { members } = await getTeamMembersWithRole(interaction.guild, config.rosterRoleId, false);
+  const playerRows = await loadPlayerRows(interaction.guildId, members, context);
+
+  let notice = results.length
+    ? `⚡ **Bulk Updated ${results.length} Player(s)!**`
+    : `⚠️ No positions were updated.`;
+  if (errors.length) {
+    notice += ` (${errors.length} skipped - check formatting)`;
   }
 
-  const panel = renderRosterPositionsPanel(role.id, playerRows, targetUserId);
-  await interaction.update(panel);
+  const panel = renderRosterPositionsPanel(roleId, playerRows, undefined, notice);
+  await interaction.editReply(panel);
 }

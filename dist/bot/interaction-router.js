@@ -1,4 +1,4 @@
-import { handleBoard, handlePlayerSearch, handleRosterPlayerSelect, handleRosterSetPosButton, handleSetPosition, handleSetPositions, } from '../commands/management.js';
+import { handleBoard, handlePlayerSearch, handleRosterModalButton, handleRosterModalSubmit, handleRosterNavButton, handleRosterPlayerSelect, handleRosterSetPosButton, handleSetPosition, handleSetPositions, } from '../commands/management.js';
 import { handleHelp } from '../commands/help.js';
 import { handleProfile } from '../commands/profile.js';
 import { handleScout, handleScoutingBrowser } from '../commands/scouting.js';
@@ -91,6 +91,12 @@ export async function routeInteraction(interaction, context) {
                 await handleGameButton(interaction, context, parsed);
             else if (parsed.action === 'roster-set-pos')
                 await handleRosterSetPosButton(interaction, context, parsed);
+            else if (parsed.action === 'roster-prev')
+                await handleRosterNavButton(interaction, context, parsed, 'prev');
+            else if (parsed.action === 'roster-next')
+                await handleRosterNavButton(interaction, context, parsed, 'next');
+            else if (parsed.action === 'roster-modal-btn')
+                await handleRosterModalButton(interaction, context, parsed);
             else if (parsed.action === 'player-game')
                 await handlePlayerGameButton(interaction, context, parsed);
             else
@@ -133,6 +139,8 @@ export async function routeInteraction(interaction, context) {
                 await handleWeekDayModal(interaction, context, parsed);
             else if (parsed.action === 'modal-game-code')
                 await handleGameCodeModal(interaction, context, parsed);
+            else if (parsed.action === 'modal-roster-positions')
+                await handleRosterModalSubmit(interaction, context, parsed);
             return;
         }
         if (interaction.isAutocomplete()) {

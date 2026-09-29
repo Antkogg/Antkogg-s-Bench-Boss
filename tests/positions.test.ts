@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   PositionGroup,
   ScoutingPosition,
@@ -52,11 +52,42 @@ describe('renderRosterPositionsPanel', () => {
 
     const panel = renderRosterPositionsPanel('role-123', [{ member: fakeMember, player: fakePlayer }], '1234567890');
 
-    expect(panel.components.length).toBe(3); // 1 select row + 2 button rows
+    expect(panel.components.length).toBe(4); // 2 position button rows + 1 nav row + 1 select row
     for (const row of panel.components) {
       expect(row.components.length).toBeLessThanOrEqual(5);
       expect(row.components.length).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it('correctly parses mentions and names in applyRosterLines', async () => {
+    const { applyRosterLines } = await import('../src/commands/management.js');
+
+    const updatePositionsMock = vi.fn().mockResolvedValue({});
+    const contextMock = {
+      players: {
+        updatePositions: updatePositionsMock,
+        search: vi.fn().mockResolvedValue([]),
+      },
+    } as any;
+
+    const fakeGuild = {
+      id: 'guild-1',
+      members: {
+        cache: new Map([
+          ['111111111111111111', { id: '111111111111111111', displayName: 'PlayerOne', user: { username: 'p1' } }],
+          ['222222222222222222', { id: '222222222222222222', displayName: 'PlayerTwo', user: { username: 'p2' } }],
+        ]),
+        fetch: vi.fn(),
+      },
+    } as any;
+
+    const raw = `<@111111111111111111> C\nPlayerTwo: LW`;
+    const res = await applyRosterLines(fakeGuild, contextMock, raw);
+
+    expect(res.results.length).toBe(2);
+    expect(res.errors.length).toBe(0);
+    expect(updatePositionsMock).toHaveBeenCalledWith('guild-1', '111111111111111111', ['C'], 'PlayerOne');
+    expect(updatePositionsMock).toHaveBeenCalledWith('guild-1', '222222222222222222', ['LW'], 'PlayerTwo');
   });
 });
 
