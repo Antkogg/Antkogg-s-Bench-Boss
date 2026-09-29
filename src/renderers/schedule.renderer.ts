@@ -407,21 +407,17 @@ export function renderIndividualGamePost(
 
   const secondaryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(customId('game-day-avail', game.id, 'available'))
-      .setLabel(`🗓 ${dayNamePlural} Yes`)
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-      .setLabel(`🚫 ${dayNamePlural} No`)
+      .setCustomId(customId('game-day-avail', game.id, 'prompt'))
+      .setLabel(`📅 ${dayNamePlural}`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))
-      .setLabel('🎮 Set Code')
+      .setLabel('🎮 Code')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-      .setLabel('👥 Set Lineup')
-      .setStyle(ButtonStyle.Secondary),
+      .setLabel('👥 Lineup')
+      .setStyle(ButtonStyle.Primary),
   );
 
   return {

@@ -1,5 +1,8 @@
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
   ModalBuilder,
   StringSelectMenuBuilder,
   TextInputBuilder,
@@ -639,6 +642,27 @@ export async function handleGameDayAvailButton(
     return gDay === targetDay;
   });
 
+  const dayNamePlural = `${targetDay}s`;
+
+  if (parsed.value === 'prompt') {
+    const promptRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId('game-day-avail', game.id, 'available'))
+        .setLabel(`✅ Available ${dayNamePlural}`)
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+        .setLabel(`❌ Unavailable ${dayNamePlural}`)
+        .setStyle(ButtonStyle.Danger),
+    );
+    await interaction.reply({
+      content: `Set your recurring availability for all **${dayNamePlural}** (${matchingGames.length} games):`,
+      components: [promptRow],
+      ephemeral: true,
+    });
+    return;
+  }
+
   const player = await context.players.byDiscordId(
     interaction.guildId,
     member.user.id,
@@ -685,16 +709,30 @@ export async function handleGameDayAvailButton(
     }
   });
 
-  const updatedThisGame = await context.schedule.game(game.id);
-  const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
-  const gameIndex = activeGames.findIndex((g) => g.id === game.id);
-  const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
+  const isEphemeral = interaction.message?.flags?.has(MessageFlags.Ephemeral);
+  if (isEphemeral) {
+    await interaction.update({
+      content:
+        status === 'AVAILABLE'
+          ? `✅ Marked as **Available** for all **${dayNamePlural}**.`
+          : `❌ Marked as **Unavailable** for all **${dayNamePlural}**.`,
+      components: [],
+    });
+    for (const mg of matchingGames) {
+      await syncSingleGamePost(interaction.guildId, mg.id, context, interaction.client);
+    }
+  } else {
+    const updatedThisGame = await context.schedule.game(game.id);
+    const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+    const gameIndex = activeGames.findIndex((g) => g.id === game.id);
+    const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
 
-  await interaction.update(renderIndividualGamePost(updatedThisGame as any, gameNumber));
+    await interaction.update(renderIndividualGamePost(updatedThisGame as any, gameNumber));
 
-  for (const otherGame of matchingGames) {
-    if (otherGame.id !== game.id) {
-      await syncSingleGamePost(interaction.guildId, otherGame.id, context, interaction.client);
+    for (const otherGame of matchingGames) {
+      if (otherGame.id !== game.id) {
+        await syncSingleGamePost(interaction.guildId, otherGame.id, context, interaction.client);
+      }
     }
   }
 }

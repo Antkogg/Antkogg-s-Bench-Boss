@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, } from 'discord.js';
 import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
 import { DateTime } from 'luxon';
 import { localWeekday } from '../domain/schedule-time.js';
@@ -454,6 +454,22 @@ export async function handleGameDayAvailButton(interaction, context, parsed) {
         const gDay = DateTime.fromJSDate(g.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
         return gDay === targetDay;
     });
+    const dayNamePlural = `${targetDay}s`;
+    if (parsed.value === 'prompt') {
+        const promptRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+            .setCustomId(customId('game-day-avail', game.id, 'available'))
+            .setLabel(`✅ Available ${dayNamePlural}`)
+            .setStyle(ButtonStyle.Success), new ButtonBuilder()
+            .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+            .setLabel(`❌ Unavailable ${dayNamePlural}`)
+            .setStyle(ButtonStyle.Danger));
+        await interaction.reply({
+            content: `Set your recurring availability for all **${dayNamePlural}** (${matchingGames.length} games):`,
+            components: [promptRow],
+            ephemeral: true,
+        });
+        return;
+    }
     const player = await context.players.byDiscordId(interaction.guildId, member.user.id, member.displayName ?? member.user.username, member.user.displayAvatarURL());
     const status = parsed.value === 'available' ? 'AVAILABLE' : 'UNAVAILABLE';
     await context.prisma.$transaction(async (tx) => {
@@ -491,14 +507,28 @@ export async function handleGameDayAvailButton(interaction, context, parsed) {
             });
         }
     });
-    const updatedThisGame = await context.schedule.game(game.id);
-    const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
-    const gameIndex = activeGames.findIndex((g) => g.id === game.id);
-    const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
-    await interaction.update(renderIndividualGamePost(updatedThisGame, gameNumber));
-    for (const otherGame of matchingGames) {
-        if (otherGame.id !== game.id) {
-            await syncSingleGamePost(interaction.guildId, otherGame.id, context, interaction.client);
+    const isEphemeral = interaction.message?.flags?.has(MessageFlags.Ephemeral);
+    if (isEphemeral) {
+        await interaction.update({
+            content: status === 'AVAILABLE'
+                ? `✅ Marked as **Available** for all **${dayNamePlural}**.`
+                : `❌ Marked as **Unavailable** for all **${dayNamePlural}**.`,
+            components: [],
+        });
+        for (const mg of matchingGames) {
+            await syncSingleGamePost(interaction.guildId, mg.id, context, interaction.client);
+        }
+    }
+    else {
+        const updatedThisGame = await context.schedule.game(game.id);
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        const gameIndex = activeGames.findIndex((g) => g.id === game.id);
+        const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
+        await interaction.update(renderIndividualGamePost(updatedThisGame, gameNumber));
+        for (const otherGame of matchingGames) {
+            if (otherGame.id !== game.id) {
+                await syncSingleGamePost(interaction.guildId, otherGame.id, context, interaction.client);
+            }
         }
     }
 }
