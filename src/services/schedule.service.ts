@@ -354,6 +354,62 @@ export class ScheduleService {
     });
   }
 
+  async addGame(input: {
+    guildId: string;
+    weekId?: string | undefined;
+    opponent: string;
+    date: string;
+    time: string;
+    homeAway?: HomeAway | undefined;
+    actorDiscordId: string;
+  }) {
+    const timezone = await this.managementTimezone(input.guildId, input.actorDiscordId);
+    const week = input.weekId
+      ? await this.getWeek(input.weekId)
+      : await this.currentWeek(input.guildId);
+    if (!week || week.guildConfig.guildId !== input.guildId)
+      throw new AppError('NOT_FOUND', 'Active week not found. Run `/week setup` first.');
+    const scheduledAtUtc = localScheduleToUtc(input.date, input.time, timezone);
+    return this.prisma.$transaction(async (tx) => {
+      const opponent = await this.resolveOpponent(
+        tx,
+        week.guildConfigId,
+        week.seasonId,
+        input.opponent,
+      );
+      const game = await tx.weeklyGame.create({
+        data: {
+          weekId: week.id,
+          label: `${input.opponent} (${input.homeAway ?? 'HOME'})`,
+          opponentId: opponent?.id ?? null,
+          opponentNameSnapshot: opponent?.name ?? input.opponent,
+          homeAway: input.homeAway ?? 'HOME',
+          scheduledAtUtc,
+          localEntryTimezone: timezone,
+          sortOrder: week.games.length,
+          createdByDiscordId: input.actorDiscordId,
+        },
+      });
+      await this.audit(
+        tx,
+        week.guildConfigId,
+        input.actorDiscordId,
+        'WEEKLY_GAME_ADDED',
+        'WeeklyGame',
+        game.id,
+        {
+          opponent: game.opponentNameSnapshot,
+          homeAway: game.homeAway,
+          scheduledAtUtc: scheduledAtUtc.toISOString(),
+        },
+      );
+      return tx.seasonWeek.findUniqueOrThrow({
+        where: { id: week.id },
+        include: this.weekInclude(),
+      });
+    });
+  }
+
   async setGameStatus(
     guildId: string,
     gameId: string,
@@ -565,14 +621,10 @@ export class ScheduleService {
         where: { gameId },
         include: { player: true },
       });
-      const required: ScoutingPosition[] = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
-      const missing = required.filter(
-        (position) => !assignments.some((assignment) => assignment.position === position),
-      );
-      if (missing.length)
+      if (!assignments.length)
         throw new AppError(
           'INVALID_STATE',
-          `Fill ${missing.join(', ')} before confirming this lineup.`,
+          'Assign at least one player before confirming this lineup.',
         );
       const newlyConfirmed = assignments.filter((assignment) => !assignment.confirmed);
       const confirmedAt = new Date();

@@ -26,6 +26,7 @@ import {
   handleLineupButton,
   handleLineupPlayerSelect,
   handleLineupPositionSelect,
+  handleLineupUserSelect,
   handlePlayerGameButton,
   handleWeekButton,
   handleWeekDayModal,
@@ -103,6 +104,12 @@ export async function routeInteraction(
       else if (parsed.action === 'game-status-select')
         await handleGameStatusSelect(interaction, context, parsed);
       else await handleSelectMenu(interaction, context, parsed);
+      return;
+    }
+    if (interaction.isUserSelectMenu()) {
+      const parsed = parseCustomId(interaction.customId);
+      if (parsed.action === 'lineup-user-select')
+        await handleLineupUserSelect(interaction, context, parsed);
       return;
     }
     if (interaction.isModalSubmit()) {

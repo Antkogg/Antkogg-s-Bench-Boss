@@ -1,38 +1,88 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { SeasonWeek, WeeklyGame } from '../generated/prisma/client.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import type { GameLineupAssignment, Player, SeasonWeek, WeeklyGame } from '../generated/prisma/client.js';
 import { customId } from '../utils/custom-id.js';
 import { brandedEmbed, discordTimestamp } from './design.js';
-import { gameOpponentLabel, groupGamesByGuildDay } from './schedule.renderer.js';
+import { gameOpponentLabel } from './schedule.renderer.js';
+
+const POSITIONS = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const;
+
+type GameWithLineup = WeeklyGame & {
+  lineup?: Array<GameLineupAssignment & { player: Player }>;
+};
 
 type WeekWithGames = SeasonWeek & {
-  games: WeeklyGame[];
+  games: GameWithLineup[];
   guildConfig?: { timezone: string };
 };
 
 export function renderWeeklyAvailability(week: WeekWithGames) {
   const games = week.games.filter((game) => game.status !== 'CANCELLED');
-  const gameNumbers = new Map(games.map((game, index) => [game.id, index + 1]));
-  const embed = brandedEmbed()
+  const embeds: EmbedBuilder[] = [];
+
+  const headerEmbed = brandedEmbed()
     .setTitle(`${week.label.toUpperCase()} AVAILABILITY`)
     .setDescription(
-      `Choose every game you can play. Times automatically display in your Discord timezone.\n\n**Deadline:** ${discordTimestamp(week.deadline, 'F')} (${discordTimestamp(week.deadline, 'R')})\n**Status:** ${week.status}`,
+      `Choose every game you can play. Times automatically display in your Discord timezone.\n\n` +
+        `**Deadline:** ${discordTimestamp(week.deadline, 'F')} (${discordTimestamp(week.deadline, 'R')})\n` +
+        `**Status:** ${week.status}`,
     );
-  const groups = groupGamesByGuildDay(games, week.guildConfig?.timezone ?? 'UTC');
-  if (groups.length) {
-    for (const group of groups) {
-      embed.addFields({
-        name: group.day.toUpperCase(),
-        value: group.games
-          .map(
-            (game) =>
-              `**${gameNumbers.get(game.id)}. ${gameOpponentLabel(game)}** • ${discordTimestamp(game.scheduledAtUtc, 'F')} (${discordTimestamp(game.scheduledAtUtc, 'R')})`,
-          )
-          .join('\n'),
+
+  if (!games.length) {
+    headerEmbed.addFields({ name: 'GAMES', value: 'Management has not configured games yet.' });
+    embeds.push(headerEmbed);
+  } else {
+    embeds.push(headerEmbed);
+    const displayGames = games.slice(0, 9);
+    displayGames.forEach((game, index) => {
+      const gameEmbed = brandedEmbed()
+        .setTitle(`GAME ${index + 1}: ${gameOpponentLabel(game).toUpperCase()}`)
+        .setDescription(
+          `📅 **Time:** ${discordTimestamp(game.scheduledAtUtc, 'F')} (${discordTimestamp(game.scheduledAtUtc, 'R')})\n` +
+            `**Status:** ${game.status}`,
+        );
+
+      const lineupLines = POSITIONS.map((pos) => {
+        const assignment = game.lineup?.find((entry) => entry.position === pos);
+        if (assignment) {
+          const check = assignment.confirmed ? '✅' : '▫️';
+          return `**${pos}:** ${check} <@${assignment.player.discordUserId}>`;
+        }
+        return `**${pos}:** *Open*`;
       });
+
+      gameEmbed.addFields({
+        name: 'LINEUP',
+        value: lineupLines.join('\n'),
+      });
+
+      if (game.gameServer || game.gameCode) {
+        gameEmbed.addFields({
+          name: 'SERVER / CODE',
+          value: `**Server:** ${game.gameServer ?? 'Not set'}\n**Code:** ${game.gameCode ?? 'Not set'}`,
+        });
+      }
+
+      embeds.push(gameEmbed);
+    });
+
+    if (games.length > 9) {
+      const extraEmbed = brandedEmbed()
+        .setTitle('ADDITIONAL GAMES')
+        .setDescription(
+          games
+            .slice(9)
+            .map(
+              (g, i) =>
+                `**${i + 10}. ${gameOpponentLabel(g)}** • ${discordTimestamp(g.scheduledAtUtc, 'F')}`,
+            )
+            .join('\n'),
+        );
+      embeds.push(extraEmbed);
     }
-  } else embed.addFields({ name: 'GAMES', value: 'Management has not configured games yet.' });
+  }
+
   return {
-    embeds: [embed],
+    embeds,
     components:
       week.status === 'OPEN'
         ? [

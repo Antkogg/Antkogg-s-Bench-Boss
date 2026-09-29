@@ -1,10 +1,11 @@
-import type { ChatInputCommandInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import {
   renderGame,
   renderManagementWeek,
   renderPlayerWeek,
 } from '../renderers/schedule.renderer.js';
+import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import { requireManagement } from './authorization.js';
@@ -50,6 +51,87 @@ export async function handleWeek(interaction: ChatInputCommandInteraction, conte
     throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
   await requireManagement(interaction, context);
   const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === 'code') {
+    const server = interaction.options.getString('server', true);
+    const code = interaction.options.getString('code', true);
+    const gameQuery = interaction.options.getString('game')?.trim();
+    let targetGameId: string | undefined;
+
+    if (gameQuery) {
+      const currentWeek = await context.schedule.currentWeek(interaction.guildId);
+      const activeGames = currentWeek?.games.filter((g) => g.status !== 'CANCELLED') ?? [];
+      const num = parseInt(gameQuery, 10);
+      if (!isNaN(num) && num >= 1 && num <= activeGames.length) {
+        targetGameId = activeGames[num - 1]?.id;
+      } else {
+        targetGameId = gameQuery;
+      }
+    } else {
+      const nearest = await context.schedule.nearestGame(interaction.guildId);
+      targetGameId = nearest?.id;
+    }
+
+    if (!targetGameId) {
+      throw new AppError(
+        'NOT_FOUND',
+        'No game found to set server and code for. Specify a game number or ID.',
+      );
+    }
+
+    const config = await context.config.ensure(interaction.guildId);
+    const updatedGame = await context.schedule.setServerCode({
+      guildId: interaction.guildId,
+      gameId: targetGameId,
+      server,
+      code,
+      actorDiscordId: interaction.user.id,
+    });
+
+    const delivered: string[] = [];
+    if (config.notifyConfirmedGameInfo) {
+      for (const assignment of updatedGame.lineup) {
+        const sent = await context.notifications.gameInfoReady(
+          assignment.player.discordUserId,
+          updatedGame,
+          assignment.position,
+        );
+        if (sent) delivered.push(assignment.id);
+      }
+    }
+    await context.schedule.markGameInfoNotified(delivered);
+
+    const week = await context.schedule.getWeek(updatedGame.weekId);
+    if (week?.channelId && week.messageId) {
+      try {
+        const channel = (await interaction.client.channels.fetch(
+          week.channelId,
+        )) as TextChannel | null;
+        if (channel?.isTextBased()) {
+          const msg = await channel.messages.fetch(week.messageId);
+          await msg.edit(renderWeeklyAvailability(week));
+        }
+      } catch {
+        /* Silently ignore */
+      }
+    }
+
+    await interaction.reply({
+      ephemeral: true,
+      embeds: [
+        renderSuccess(
+          'Server & Code Saved',
+          `**${updatedGame.opponentNameSnapshot ?? 'Upcoming Game'}**\n` +
+            `**Server:** ${server}\n**Code:** ${code}\n\n` +
+            (config.notifyConfirmedGameInfo
+              ? 'Confirmed lineup players were notified via DM.'
+              : 'Confirmed players can now use `/game`.'),
+        ),
+      ],
+    });
+    return;
+  }
+
   const week =
     subcommand === 'setup'
       ? await context.schedule.createWeek({
@@ -63,8 +145,31 @@ export async function handleWeek(interaction: ChatInputCommandInteraction, conte
         })
       : subcommand === 'next'
         ? await context.schedule.createNextWeek(interaction.guildId, interaction.user.id)
-        : await context.schedule.currentWeek(interaction.guildId);
+        : subcommand === 'add-game'
+          ? await context.schedule.addGame({
+              guildId: interaction.guildId,
+              weekId: interaction.options.getString('week') ?? undefined,
+              opponent: interaction.options.getString('opponent', true),
+              date: interaction.options.getString('date', true),
+              time: interaction.options.getString('time', true),
+              homeAway: (interaction.options.getString('home_away') as 'HOME' | 'AWAY') ?? 'HOME',
+              actorDiscordId: interaction.user.id,
+            })
+          : await context.schedule.currentWeek(interaction.guildId);
   if (!week) throw new AppError('NOT_FOUND', 'No current week was found.');
+  if (subcommand === 'add-game' && week.channelId && week.messageId) {
+    try {
+      const channel = (await interaction.client.channels.fetch(
+        week.channelId,
+      )) as TextChannel | null;
+      if (channel?.isTextBased()) {
+        const msg = await channel.messages.fetch(week.messageId);
+        await msg.edit(renderWeeklyAvailability(week));
+      }
+    } catch {
+      /* Silently ignore message edit failures */
+    }
+  }
   await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
 }
 

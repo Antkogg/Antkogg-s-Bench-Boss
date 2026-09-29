@@ -192,6 +192,45 @@ export class NotificationService {
     );
   }
 
+  async gameReminder(
+    userId: string,
+    game: {
+      id: string;
+      scheduledAtUtc: Date;
+      opponentNameSnapshot: string | null;
+      homeAway: string | null;
+      gameServer?: string | null;
+      gameCode?: string | null;
+    },
+    position: ScoutingPosition,
+  ): Promise<boolean> {
+    return this.send(
+      userId,
+      {
+        embeds: [
+          brandedEmbed()
+            .setTitle('🏒 GAME REMINDER • 3 HOURS TO GAME')
+            .setDescription(
+              `You are confirmed at **${position}** ${game.homeAway === 'AWAY' ? '@' : 'vs'} **${game.opponentNameSnapshot ?? 'TBD'}**.\n\n` +
+                `**Game Time:** ${discordTimestamp(game.scheduledAtUtc, 'F')} (${discordTimestamp(game.scheduledAtUtc, 'R')})\n` +
+                `**Server:** ${game.gameServer ?? 'Not set yet'}\n` +
+                `**Code:** ${game.gameCode ?? 'Not set yet'}\n\n` +
+                `Be ready 10-15 minutes prior to game time. Use \`/game\` anytime for live updates.`,
+            ),
+        ],
+        components: [
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(customId('player-game', game.id))
+              .setLabel('View Game Details')
+              .setStyle(ButtonStyle.Primary),
+          ),
+        ],
+      },
+      'regular-season 3-hour game reminder',
+    );
+  }
+
   async lineupRemoved(
     userId: string,
     game: { scheduledAtUtc: Date; opponentNameSnapshot: string | null } | null,

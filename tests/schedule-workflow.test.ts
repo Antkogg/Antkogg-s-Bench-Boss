@@ -85,6 +85,62 @@ describe('regular-season scheduling workflow', () => {
     );
   });
 
+  it('adds an individual game with opponent team name, date, and time', async () => {
+    const create = vi.fn(
+      async ({
+        data,
+      }: {
+        data: {
+          opponentNameSnapshot: string;
+          homeAway: string;
+          scheduledAtUtc: Date;
+        };
+      }) => ({ id: 'game-new', ...data }),
+    );
+    const week = {
+      id: 'week-1',
+      guildConfigId: 'config-1',
+      seasonId: null,
+      guildConfig: { guildId: 'guild-1' },
+      games: [],
+    };
+    const tx = {
+      opponent: {
+        findFirst: vi.fn(async () => null),
+        create: vi.fn(async ({ data }: { data: { name: string } }) => ({
+          id: 'opp-1',
+          name: data.name,
+        })),
+      },
+      weeklyGame: { create },
+      seasonWeek: { findUniqueOrThrow: vi.fn(async () => week) },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+    const prisma = {
+      managementProfile: { findFirst: vi.fn(async () => ({ timezone: 'America/Edmonton' })) },
+      seasonWeek: { findUnique: vi.fn(async () => week) },
+      $transaction: async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    } as unknown as PrismaClient;
+    await new ScheduleService(prisma).addGame({
+      guildId: 'guild-1',
+      weekId: 'week-1',
+      opponent: 'Boston University',
+      date: '2026-10-04',
+      time: '8:30 PM',
+      homeAway: 'AWAY',
+      actorDiscordId: 'manager-1',
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          opponentNameSnapshot: 'Boston University',
+          homeAway: 'AWAY',
+          scheduledAtUtc: new Date('2026-10-05T02:30:00.000Z'),
+        }),
+      }),
+    );
+  });
+
   it('persists and deduplicates the one-hour missing-code reminder', async () => {
     const claim = { id: 'reminder-1', sentAt: null as Date | null, failedAt: null as Date | null };
     const send = vi.fn(async () => 'message-1');
@@ -115,5 +171,72 @@ describe('regular-season scheduling workflow', () => {
     await job.tick(now);
     await job.tick(now);
     expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('sends 3-hour pre-game reminders to confirmed players and deduplicates', async () => {
+    const claim = { id: 'claim-1', sentAt: null as Date | null, failedAt: null as Date | null };
+    const sendReminder = vi.fn(async () => true);
+    const game = {
+      id: 'game-1',
+      scheduledAtUtc: new Date('2026-09-01T21:00:00Z'),
+      opponentNameSnapshot: 'Montreal',
+      homeAway: 'HOME',
+      lineup: [
+        {
+          id: 'assign-1',
+          confirmed: true,
+          position: 'LW',
+          player: { discordUserId: 'player-lw' },
+        },
+      ],
+      week: { guildConfig: { managementChannelId: 'channel-1', serverCodeReminderMinutes: 60 } },
+    };
+    const prisma = {
+      gameLineupAssignment: { findMany: vi.fn(async () => []) },
+      weeklyGame: {
+        findMany: vi.fn(async (args?: { where?: { lineup?: unknown } }) => {
+          if (args?.where?.lineup) return [game];
+          return [];
+        }),
+      },
+      gameManagementReminder: {
+        upsert: vi.fn(async () => claim),
+        update: vi.fn(async ({ data }: { data: { sentAt?: Date } }) => {
+          claim.sentAt = data.sentAt ?? null;
+          return claim;
+        }),
+      },
+    } as unknown as PrismaClient;
+    const job = new GameDayReminderJob(prisma, { gameReminder: sendReminder } as never);
+    const now = new Date('2026-09-01T18:00:00Z');
+    await job.tick(now);
+    await job.tick(now);
+    expect(sendReminder).toHaveBeenCalledOnce();
+    expect(sendReminder).toHaveBeenCalledWith('player-lw', game, 'LW');
+  });
+
+  it('allows manager to confirm lineup with the players that are available', async () => {
+    const assignments = [
+      { id: 'assign-1', position: 'LW', playerId: 'p1', confirmed: false, player: { id: 'p1', eaTag: 'Tag1' } },
+      { id: 'assign-2', position: 'C', playerId: 'p2', confirmed: false, player: { id: 'p2', eaTag: 'Tag2' } },
+    ];
+    const updateMany = vi.fn(async () => ({ count: 2 }));
+    const game = { id: 'game-1', week: { guildConfigId: 'config-1' } };
+    const tx = {
+      gameLineupAssignment: {
+        findMany: vi.fn(async () => assignments),
+        updateMany,
+      },
+      weeklyGame: { findUniqueOrThrow: vi.fn(async () => game) },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+    const prisma = {
+      weeklyGame: { findFirst: vi.fn(async () => game) },
+      $transaction: async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    } as unknown as PrismaClient;
+    const scheduleService = new ScheduleService(prisma);
+    const result = await scheduleService.confirmLineup('guild-1', 'game-1', 'manager-1');
+    expect(result.newlyConfirmed).toHaveLength(2);
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { gameId: 'game-1' } }));
   });
 });
