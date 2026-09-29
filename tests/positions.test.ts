@@ -32,3 +32,31 @@ describe('position eligibility', () => {
     },
   );
 });
+
+describe('renderRosterPositionsPanel', () => {
+  it('splits position buttons across multiple rows so no action row exceeds 5 components', async () => {
+    const { renderRosterPositionsPanel } = await import('../src/commands/management.js');
+
+    const fakeMember = {
+      id: '1234567890',
+      displayName: 'TestPlayer',
+      user: { username: 'TestPlayer' },
+    } as any;
+
+    const fakePlayer = {
+      id: 'player-1',
+      discordUserId: '1234567890',
+      displayName: 'TestPlayer',
+      signupPositions: [],
+    } as any;
+
+    const panel = renderRosterPositionsPanel('role-123', [{ member: fakeMember, player: fakePlayer }], '1234567890');
+
+    expect(panel.components.length).toBe(3); // 1 select row + 2 button rows
+    for (const row of panel.components) {
+      expect(row.components.length).toBeLessThanOrEqual(5);
+      expect(row.components.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+

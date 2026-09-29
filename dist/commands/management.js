@@ -122,26 +122,16 @@ export async function handleSetPosition(interaction, context) {
     });
 }
 export async function getTeamMembersWithRole(guild, configRole) {
-    let role = guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+    await guild.roles.fetch().catch(() => null);
+    const role = guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
         guild.roles.cache.get(configRole ?? '') ??
         guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
     if (!role) {
-        await guild.roles.fetch().catch(() => null);
-        role =
-            guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
-                guild.roles.cache.get(configRole ?? '') ??
-                guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
-    }
-    if (!role) {
         throw new AppError('NOT_FOUND', 'Could not find the "S55 BU" team role in this server.');
     }
-    let members = Array.from(role.members.filter((m) => !m.user.bot).values());
-    if (!members.length) {
-        const fetched = await guild.members.fetch().catch(() => null);
-        if (fetched) {
-            members = Array.from(fetched.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
-        }
-    }
+    // Always fetch full guild members list to ensure all players with the role are included
+    const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
+    const members = Array.from(allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
     return { role, members };
 }
 export function renderRosterPositionsPanel(roleId, playerRows, selectedMemberId) {
@@ -179,15 +169,15 @@ export function renderRosterPositionsPanel(roleId, playerRows, selectedMemberId)
     }))));
     const components = [selectMenu];
     if (selectedMemberId) {
-        const buttonRow = new ActionRowBuilder().addComponents(['LW', 'C', 'RW', 'LD', 'RD', 'G'].map((pos) => new ButtonBuilder()
+        const forwardRow = new ActionRowBuilder().addComponents(['LW', 'C', 'RW'].map((pos) => new ButtonBuilder()
             .setCustomId(customId('roster-set-pos', selectedMemberId, pos))
             .setLabel(pos)
-            .setStyle(pos === 'C' || pos === 'LW' || pos === 'RW'
-            ? ButtonStyle.Primary
-            : pos === 'G'
-                ? ButtonStyle.Success
-                : ButtonStyle.Secondary)));
-        components.push(buttonRow);
+            .setStyle(ButtonStyle.Primary)));
+        const defGoalieRow = new ActionRowBuilder().addComponents(['LD', 'RD', 'G'].map((pos) => new ButtonBuilder()
+            .setCustomId(customId('roster-set-pos', selectedMemberId, pos))
+            .setLabel(pos)
+            .setStyle(pos === 'G' ? ButtonStyle.Success : ButtonStyle.Secondary)));
+        components.push(forwardRow, defGoalieRow);
     }
     return { embeds: [embed], components };
 }
