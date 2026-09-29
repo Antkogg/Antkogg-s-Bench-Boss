@@ -6,26 +6,20 @@ import { renderWeeklyAvailability } from '../renderers/weekly-availability.rende
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
+import { DEFAULT_AVAILABILITY_CHANNEL_ID } from '../config/constants.js';
 import { requireManagement } from './authorization.js';
 import { getTeamMembersWithRole } from './management.js';
 export async function syncAvailabilityPost(guildId, week, context, client) {
     const config = await context.config.ensure(guildId);
     let channelId = config.teamAvailabilityChannelId;
     const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
-    if (!channelId && guild) {
-        const found = guild.channels.cache.find((c) => c.isTextBased() &&
-            (c.name.toLowerCase().includes('availability') ||
-                c.name.toLowerCase().includes('schedule')));
-        if (found) {
-            channelId = found.id;
-            await context.prisma.guildConfig.update({
-                where: { guildId },
-                data: { teamAvailabilityChannelId: channelId },
-            });
-        }
+    if (!channelId) {
+        channelId = DEFAULT_AVAILABILITY_CHANNEL_ID;
+        await context.prisma.guildConfig.update({
+            where: { guildId },
+            data: { teamAvailabilityChannelId: channelId },
+        }).catch(() => null);
     }
-    if (!channelId)
-        return null;
     try {
         const channel = (await client.channels.fetch(channelId).catch(() => null));
         if (!channel?.isTextBased())

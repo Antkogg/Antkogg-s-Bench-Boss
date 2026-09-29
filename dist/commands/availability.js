@@ -4,6 +4,7 @@ import { renderManagementWeek, renderPlayerWeek, gameOpponentLabel, } from '../r
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import { customId } from '../utils/custom-id.js';
+import { DEFAULT_AVAILABILITY_CHANNEL_ID } from '../config/constants.js';
 import { requireManagement } from './authorization.js';
 function filterFrom(value) {
     const teamStatus = value === 'roster' ? 'ROSTER' : value === 'tc' ? 'TC' : undefined;
@@ -141,10 +142,9 @@ export async function publishAvailability(interaction, context, weekId) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
     const { config } = await requireManagement(interaction, context);
-    if (!config.teamAvailabilityChannelId)
-        throw new AppError('NOT_CONFIGURED', 'Configure the availability channel with `/setup channels`.');
+    const availabilityChannelId = config.teamAvailabilityChannelId || DEFAULT_AVAILABILITY_CHANNEL_ID;
     const week = await context.weeklyAvailability.setState(weekId, 'OPEN', interaction.user.id);
-    const channel = (await interaction.client.channels.fetch(config.teamAvailabilityChannelId));
+    const channel = (await interaction.client.channels.fetch(availabilityChannelId));
     if (!channel?.isTextBased() || channel.isDMBased())
         throw new AppError('NOT_FOUND', 'The availability channel is unavailable.');
     let message;

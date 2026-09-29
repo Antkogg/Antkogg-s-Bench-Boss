@@ -18,4 +18,5 @@ export const DISCORD_LIMITS = {
     actionRows: 5,
 };
 export const DEFAULT_TEAM_ROLE_ID = '1543415709831397386';
+export const DEFAULT_AVAILABILITY_CHANNEL_ID = '1543417189208428564';
 //# sourceMappingURL=constants.js.map
