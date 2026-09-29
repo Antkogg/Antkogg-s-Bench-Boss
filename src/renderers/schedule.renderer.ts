@@ -396,30 +396,30 @@ export function renderIndividualGamePost(
   const playerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-avail', game.id, 'available'))
-      .setLabel('✅ Available')
+      .setLabel('Available')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(customId('game-avail', game.id, 'unavailable'))
-      .setLabel('❌ Out')
+      .setLabel('Out')
       .setStyle(ButtonStyle.Danger),
   );
 
   const secondaryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-day-avail', game.id, 'available'))
-      .setLabel(`🗓 All ${dayName}`)
+      .setLabel(`All ${dayName}`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-      .setLabel(`🚫 No ${dayName}`)
+      .setLabel(`No ${dayName}`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))
-      .setLabel('🎮 Code')
+      .setLabel('Code')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-      .setLabel('👥 Lineup')
+      .setLabel('Lineup')
       .setStyle(ButtonStyle.Primary),
   );
 

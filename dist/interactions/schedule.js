@@ -458,10 +458,10 @@ export async function handleGameDayAvailButton(interaction, context, parsed) {
     if (parsed.value === 'prompt') {
         const promptRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
             .setCustomId(customId('game-day-avail', game.id, 'available'))
-            .setLabel(`✅ Available ${dayNamePlural}`)
+            .setLabel(`Available ${dayNamePlural}`)
             .setStyle(ButtonStyle.Success), new ButtonBuilder()
             .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-            .setLabel(`❌ Unavailable ${dayNamePlural}`)
+            .setLabel(`Unavailable ${dayNamePlural}`)
             .setStyle(ButtonStyle.Danger));
         await interaction.reply({
             content: `Set your recurring availability for all **${dayNamePlural}** (${matchingGames.length} games):`,

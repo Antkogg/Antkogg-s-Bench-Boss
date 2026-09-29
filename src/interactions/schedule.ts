@@ -648,11 +648,11 @@ export async function handleGameDayAvailButton(
     const promptRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(customId('game-day-avail', game.id, 'available'))
-        .setLabel(`✅ Available ${dayNamePlural}`)
+        .setLabel(`Available ${dayNamePlural}`)
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-        .setLabel(`❌ Unavailable ${dayNamePlural}`)
+        .setLabel(`Unavailable ${dayNamePlural}`)
         .setStyle(ButtonStyle.Danger),
     );
     await interaction.reply({
