@@ -202,9 +202,8 @@ export function renderIndividualGamePost(game, gameNumber) {
     const matchupLine = isAway
         ? `Boston University @ ${opponentFullName}`
         : `Boston University vs ${opponentFullName}`;
-    const venueLine = isAway
-        ? `✈️ Away @ ${opponentFullName}`
-        : `🏠 Home vs ${opponentFullName}`;
+    const locationTitle = isAway ? '✈️ AWAY GAME' : '🏠 HOME GAME';
+    const locationSub = isAway ? `@ ${opponentFullName}` : `vs ${opponentFullName}`;
     const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
     const dayNamePlural = `${dayName}s`;
     const formatSlot = (pos) => {
@@ -234,9 +233,10 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setAuthor(null)
         .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${opponentShortName}`)
         .setDescription(`${matchupLine}\n\n` +
+        `**${locationTitle}**\n` +
+        `${locationSub}\n\n` +
         `📅 <t:${timeUnix}:D>\n` +
-        `🕗 <t:${timeUnix}:t>\n` +
-        `${venueLine}`)
+        `🕖 <t:${timeUnix}:t>`)
         .addFields({
         name: 'FORWARDS',
         value: forwardsText,
@@ -245,23 +245,27 @@ export function renderIndividualGamePost(game, gameNumber) {
         name: 'DEFENSE & GOALIE',
         value: defenseText,
         inline: true,
-    }, {
-        name: '\u200B',
-        value: '\u200B',
-        inline: true,
-    }, {
-        name: `🟢 Available · ${availablePlayers.length}`,
-        value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : (hasResponses ? '*None*' : '*No responses yet*'),
-        inline: true,
-    }, {
-        name: `🔴 Out · ${outPlayers.length}`,
-        value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : (hasResponses ? '*None*' : '*No responses yet*'),
-        inline: true,
-    }, {
-        name: '\u200B',
-        value: '\u200B',
-        inline: true,
-    }, {
+    });
+    if (!hasResponses) {
+        embed.addFields({
+            name: 'AVAILABILITY',
+            value: '🟢 Available • 0\n🔴 Out • 0\n*No responses yet*',
+            inline: false,
+        });
+    }
+    else {
+        embed.addFields({
+            name: `🟢 Available • ${availablePlayers.length}`,
+            value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None*',
+            inline: true,
+        }, {
+            name: `🔴 Out • ${outPlayers.length}`,
+            value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
+            inline: true,
+        });
+    }
+    embed
+        .addFields({
         name: 'GAME CODE',
         value: serverCodeValue,
         inline: false,
@@ -275,23 +279,23 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setStyle(ButtonStyle.Success), new ButtonBuilder()
         .setCustomId(customId('game-avail', game.id, 'unavailable'))
         .setLabel('❌ Out')
-        .setStyle(ButtonStyle.Danger), new ButtonBuilder()
-        .setCustomId(customId('game-day-avail', game.id, 'available'))
-        .setLabel(`✅ Available ${dayNamePlural}`)
-        .setStyle(ButtonStyle.Success), new ButtonBuilder()
-        .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-        .setLabel(`❌ Unavailable ${dayNamePlural}`)
         .setStyle(ButtonStyle.Danger));
-    const managerRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+    const secondaryRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+        .setCustomId(customId('game-day-avail', game.id, 'available'))
+        .setLabel(`🗓 ${dayNamePlural} Yes`)
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+        .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+        .setLabel(`🚫 ${dayNamePlural} No`)
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'code'))
-        .setLabel('🎮 Set Game Code')
+        .setLabel('🎮 Set Code')
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('lineup-action', game.id, 'choose-game'))
         .setLabel('👥 Set Lineup')
-        .setStyle(ButtonStyle.Primary));
+        .setStyle(ButtonStyle.Secondary));
     return {
         embeds: [embed],
-        components: [playerRow, managerRow],
+        components: [playerRow, secondaryRow],
     };
 }
 //# sourceMappingURL=schedule.renderer.js.map
