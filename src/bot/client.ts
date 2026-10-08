@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Options, Partials } from 'discord.js';
+import { Client, Events, GatewayIntentBits, Options, Partials } from 'discord.js';
 import type { AppEnv } from '../config/env.js';
 import { getPrisma } from '../database/client.js';
 import { AttendanceService } from '../services/attendance.service.js';
@@ -91,7 +91,7 @@ export function createLgAssistantApp(env: AppEnv): LgAssistantApp {
   // guildMemberAdd onboarding is disabled - managers manually assign team roles
   // client.on('guildMemberAdd', (member) => void welcome.handleMemberAdd(member));
   client.on('interactionCreate', (interaction) => void routeInteraction(interaction, context));
-  client.once('ready', (readyClient) => {
+  client.once(Events.ClientReady, (readyClient) => {
     logger.info(
       { user: readyClient.user.tag, guilds: readyClient.guilds.cache.size },
       "Antkogg's LG Assistant is ready",

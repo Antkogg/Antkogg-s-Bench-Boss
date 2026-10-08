@@ -282,6 +282,22 @@ export function renderGame(
   };
 }
 
+function formatSafeMentionList(mentions: string[], maxChars = 450): string {
+  if (!mentions.length) return '';
+  const result: string[] = [];
+  let currentLen = 0;
+  for (let i = 0; i < mentions.length; i++) {
+    const nextLen = currentLen + mentions[i]!.length + (result.length ? 2 : 0);
+    if (nextLen > maxChars && i < mentions.length) {
+      const remaining = mentions.length - i;
+      return `${result.join(', ')} *(+${remaining} more)*`;
+    }
+    result.push(mentions[i]!);
+    currentLen = nextLen;
+  }
+  return result.join(', ');
+}
+
 export function renderIndividualGamePost(
   game: WeeklyGame & {
     lineup?: Array<GameLineupAssignment & { player: Player }>;
@@ -358,12 +374,13 @@ export function renderIndividualGamePost(
         value: serverCodeValue,
         inline: true,
       },
+
       {
         name: `👥 AVAILABILITY (${availablePlayers.length} in • ${outPlayers.length} out)`,
         value:
           availablePlayers.length || outPlayers.length
-            ? (availablePlayers.length ? `🟢 **Available (${availablePlayers.length}):** ${availablePlayers.join(', ').slice(0, 500)}\n` : '') +
-              (outPlayers.length ? `🔴 **Out (${outPlayers.length}):** ${outPlayers.join(', ').slice(0, 450)}` : '')
+            ? (availablePlayers.length ? `🟢 **Available (${availablePlayers.length}):** ${formatSafeMentionList(availablePlayers, 450)}\n` : '') +
+              (outPlayers.length ? `🔴 **Out (${outPlayers.length}):** ${formatSafeMentionList(outPlayers, 400)}` : '')
             : '*No responses recorded yet*',
         inline: false,
       },

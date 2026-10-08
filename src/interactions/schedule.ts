@@ -12,7 +12,6 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type UserSelectMenuInteraction,
-  type TextChannel,
 } from 'discord.js';
 import { DateTime } from 'luxon';
 import type {
@@ -29,7 +28,6 @@ import type { BotContext } from '../commands/context.js';
 import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek, renderLineupDashboard } from '../renderers/schedule.renderer.js';
 import { parseScheduleLine, syncAvailabilityPost, syncSingleGamePost, syncLineupDashboard } from '../commands/schedule.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
-import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { customId, parseCustomId, type ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { DEFAULT_ROSTER_ROLE_ID } from '../config/constants.js';
@@ -73,15 +71,8 @@ export async function handleWeekButton(
       parsed.value === 'lock' ? 'LOCKED' : 'OPEN',
       interaction.user.id,
     );
-    if (updated.channelId && updated.messageId) {
-      try {
-        const channel = (await interaction.client.channels.fetch(updated.channelId)) as TextChannel;
-        await (
-          await channel.messages.fetch(updated.messageId)
-        ).edit(renderWeeklyAvailability(updated));
-      } catch {
-        /* Publishing again repairs a missing post. */
-      }
+    if (interaction.guildId) {
+      await syncAvailabilityPost(interaction.guildId, updated as any, context, interaction.client).catch(() => null);
     }
     const week = await context.schedule.getWeek(parsed.entityId);
     if (!week) throw new AppError('NOT_FOUND', 'Week not found.');
@@ -147,7 +138,7 @@ export async function handleWeekDayModal(
     entries,
     interaction.user.id,
   );
-  await refreshWeekPost(interaction, week);
+  await refreshWeekPost(interaction, week, context);
   await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
 }
 
@@ -878,7 +869,6 @@ export async function handleGameButton(
       interaction.user.id,
     );
     if (updatedWeek) {
-      await refreshWeekPost(interaction, updatedWeek);
       await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
     }
     await interaction.reply({
@@ -1241,7 +1231,7 @@ export async function handleGameCodeModal(
     const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
     await interaction.message.edit(renderIndividualGamePost(game as any, gameNumber)).catch(() => null);
   } else if (week) {
-    await refreshWeekPost(interaction, week);
+    await refreshWeekPost(interaction, week, context);
   }
   await interaction.reply({
     ephemeral: true,
@@ -1275,21 +1265,17 @@ export async function handleGameStatusSelect(
   for (const assignment of game.lineup.filter((entry) => entry.confirmed))
     await context.notifications.regularGameStatus(assignment.player.discordUserId, game);
   const week = await context.schedule.getWeek(game.weekId);
-  if (week) await refreshWeekPost(interaction, week);
+  if (week) await refreshWeekPost(interaction, week, context);
   await interaction.update(renderGame(game, true));
 }
 
 async function refreshWeekPost(
   interaction: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction,
   week: Awaited<ReturnType<BotContext['schedule']['getWeek']>>,
+  context: BotContext,
 ) {
-  if (!week?.channelId || !week.messageId) return;
-  try {
-    const channel = (await interaction.client.channels.fetch(week.channelId)) as TextChannel;
-    await (await channel.messages.fetch(week.messageId)).edit(renderWeeklyAvailability(week));
-  } catch {
-    /* Publishing again repairs a missing post. */
-  }
+  if (!interaction.guildId || !week) return;
+  await syncAvailabilityPost(interaction.guildId, week as any, context, interaction.client).catch(() => null);
 }
 
 export async function handleNightPosSelect(

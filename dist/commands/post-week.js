@@ -128,18 +128,6 @@ async function executePostWeek(interaction, context, weekData) {
         });
     }
     else {
-        // If games already exist, delete previous games so we cleanly populate the exact official matchups
-        if (seasonWeek.games.length > 0) {
-            await context.prisma.playerGameAvailability.deleteMany({
-                where: { game: { weekId: seasonWeek.id } },
-            });
-            await context.prisma.gameLineupAssignment.deleteMany({
-                where: { game: { weekId: seasonWeek.id } },
-            });
-            await context.prisma.weeklyGame.deleteMany({
-                where: { weekId: seasonWeek.id },
-            });
-        }
         // Reopen week if needed
         if (seasonWeek.status !== 'OPEN') {
             await context.prisma.seasonWeek.update({
@@ -148,20 +136,28 @@ async function executePostWeek(interaction, context, weekData) {
             });
         }
     }
-    // Populate games (converted accurately from MST to UTC so Discord dynamic tags display in every player's local timezone)
+    // Populate games if not already created
     const addedGames = [];
-    for (const game of weekData.games) {
-        await context.schedule.addGame({
-            guildId,
-            weekId: seasonWeek.id,
-            opponent: game.opponent,
-            date: game.date,
-            time: game.time,
-            homeAway: game.homeAway,
-            timezone: 'America/Edmonton',
-            actorDiscordId: interaction.user.id,
-        });
-        addedGames.push(`${game.homeAway === 'AWAY' ? '@' : 'vs'} **${game.opponent}** • ${game.date} at ${game.time} MST`);
+    if (seasonWeek.games.length === 0) {
+        for (const game of weekData.games) {
+            await context.schedule.addGame({
+                guildId,
+                weekId: seasonWeek.id,
+                opponent: game.opponent,
+                date: game.date,
+                time: game.time,
+                homeAway: game.homeAway,
+                timezone: 'America/Edmonton',
+                actorDiscordId: interaction.user.id,
+            });
+            addedGames.push(`${game.homeAway === 'AWAY' ? '@' : 'vs'} **${game.opponent}** • ${game.date} at ${game.time} MST`);
+        }
+    }
+    else {
+        for (const g of seasonWeek.games) {
+            const opp = g.opponentNameSnapshot ?? g.label;
+            addedGames.push(`${g.homeAway === 'AWAY' ? '@' : 'vs'} **${opp}**`);
+        }
     }
     // Fetch complete week and publish to availability channel
     const fullWeek = await context.schedule.getWeek(seasonWeek.id);

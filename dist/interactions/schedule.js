@@ -7,7 +7,6 @@ import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
 import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek, renderLineupDashboard } from '../renderers/schedule.renderer.js';
 import { parseScheduleLine, syncAvailabilityPost, syncSingleGamePost, syncLineupDashboard } from '../commands/schedule.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
-import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { customId, parseCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { DEFAULT_ROSTER_ROLE_ID } from '../config/constants.js';
@@ -40,14 +39,8 @@ export async function handleWeekButton(interaction, context, parsed) {
     }
     if (parsed.value === 'lock' || parsed.value === 'reopen') {
         const updated = await context.weeklyAvailability.setState(parsed.entityId, parsed.value === 'lock' ? 'LOCKED' : 'OPEN', interaction.user.id);
-        if (updated.channelId && updated.messageId) {
-            try {
-                const channel = (await interaction.client.channels.fetch(updated.channelId));
-                await (await channel.messages.fetch(updated.messageId)).edit(renderWeeklyAvailability(updated));
-            }
-            catch {
-                /* Publishing again repairs a missing post. */
-            }
+        if (interaction.guildId) {
+            await syncAvailabilityPost(interaction.guildId, updated, context, interaction.client).catch(() => null);
         }
         const week = await context.schedule.getWeek(parsed.entityId);
         if (!week)
@@ -100,7 +93,7 @@ export async function handleWeekDayModal(interaction, context, parsed) {
         return { opponent, homeAway, ...(rawTime ? { time: rawTime } : {}) };
     });
     const week = await context.schedule.updateDay(interaction.guildId, parsed.entityId, parsed.value, entries, interaction.user.id);
-    await refreshWeekPost(interaction, week);
+    await refreshWeekPost(interaction, week, context);
     await interaction.reply({ ephemeral: true, ...renderManagementWeek(week) });
 }
 export async function handleQuickGameModal(interaction, context, _parsed) {
@@ -664,7 +657,6 @@ export async function handleGameButton(interaction, context, parsed) {
         await requireManagement(interaction, context);
         const updatedWeek = await context.schedule.deleteGame(interaction.guildId, parsed.entityId, interaction.user.id);
         if (updatedWeek) {
-            await refreshWeekPost(interaction, updatedWeek);
             await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
         }
         await interaction.reply({
@@ -950,7 +942,7 @@ export async function handleGameCodeModal(interaction, context, parsed) {
         await interaction.message.edit(renderIndividualGamePost(game, gameNumber)).catch(() => null);
     }
     else if (week) {
-        await refreshWeekPost(interaction, week);
+        await refreshWeekPost(interaction, week, context);
     }
     await interaction.reply({
         ephemeral: true,
@@ -974,19 +966,13 @@ export async function handleGameStatusSelect(interaction, context, parsed) {
         await context.notifications.regularGameStatus(assignment.player.discordUserId, game);
     const week = await context.schedule.getWeek(game.weekId);
     if (week)
-        await refreshWeekPost(interaction, week);
+        await refreshWeekPost(interaction, week, context);
     await interaction.update(renderGame(game, true));
 }
-async function refreshWeekPost(interaction, week) {
-    if (!week?.channelId || !week.messageId)
+async function refreshWeekPost(interaction, week, context) {
+    if (!interaction.guildId || !week)
         return;
-    try {
-        const channel = (await interaction.client.channels.fetch(week.channelId));
-        await (await channel.messages.fetch(week.messageId)).edit(renderWeeklyAvailability(week));
-    }
-    catch {
-        /* Publishing again repairs a missing post. */
-    }
+    await syncAvailabilityPost(interaction.guildId, week, context, interaction.client).catch(() => null);
 }
 export async function handleNightPosSelect(interaction, context, parsed) {
     if (!interaction.guildId)

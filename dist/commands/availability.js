@@ -1,11 +1,10 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, } from 'discord.js';
-import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { renderManagementWeek, renderPlayerWeek, gameOpponentLabel, } from '../renderers/schedule.renderer.js';
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
 import { customId } from '../utils/custom-id.js';
-import { DEFAULT_AVAILABILITY_CHANNEL_ID } from '../config/constants.js';
 import { requireManagement } from './authorization.js';
+import { syncAvailabilityPost } from './schedule.js';
 function filterFrom(value) {
     const teamStatus = value === 'roster' ? 'ROSTER' : value === 'tc' ? 'TC' : undefined;
     const positionGroup = value === 'forwards'
@@ -31,7 +30,7 @@ export async function handleAvailability(interaction, context) {
         await requireManagement(interaction, context);
         const status = interaction.options.getString('status', true);
         const updated = await context.weeklyAvailability.setState(week.id, status, interaction.user.id);
-        await refreshAvailabilityPost(interaction, updated);
+        await refreshAvailabilityPost(interaction, updated, context);
         await interaction.reply({
             ephemeral: true,
             embeds: [renderSuccess('Availability updated', `**${updated.label}** is now **${status}**.`)],
@@ -141,37 +140,18 @@ export async function handleAvailability(interaction, context) {
 export async function publishAvailability(interaction, context, weekId) {
     if (!interaction.guildId)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
-    const { config } = await requireManagement(interaction, context);
-    const availabilityChannelId = config.teamAvailabilityChannelId || DEFAULT_AVAILABILITY_CHANNEL_ID;
+    await requireManagement(interaction, context);
     const week = await context.weeklyAvailability.setState(weekId, 'OPEN', interaction.user.id);
-    const channel = (await interaction.client.channels.fetch(availabilityChannelId));
-    if (!channel?.isTextBased() || channel.isDMBased())
+    const postedChannel = await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    if (!postedChannel) {
         throw new AppError('NOT_FOUND', 'The availability channel is unavailable.');
-    let message;
-    if (week.messageId && week.channelId === channel.id) {
-        try {
-            message = await channel.messages.fetch(week.messageId);
-            await message.edit(renderWeeklyAvailability(week));
-        }
-        catch {
-            message = await channel.send(renderWeeklyAvailability(week));
-        }
     }
-    else
-        message = await channel.send(renderWeeklyAvailability(week));
-    await context.weeklyAvailability.saveMessage(week.id, channel.id, message.id);
-    return channel.id;
+    return postedChannel.id;
 }
-async function refreshAvailabilityPost(interaction, week) {
-    if (!week.channelId || !week.messageId)
+async function refreshAvailabilityPost(interaction, week, context) {
+    if (!interaction.guildId || !week)
         return;
-    try {
-        const channel = (await interaction.client.channels.fetch(week.channelId));
-        await (await channel.messages.fetch(week.messageId)).edit(renderWeeklyAvailability(week));
-    }
-    catch {
-        /* A later publish repairs a deleted post. */
-    }
+    await syncAvailabilityPost(interaction.guildId, week, context, interaction.client).catch(() => null);
 }
 async function resolveWeek(interaction, context) {
     const explicit = interaction.options.getString('week');
