@@ -322,11 +322,13 @@ export async function handleLineupButton(interaction, context, parsed) {
         if (!week)
             throw new AppError('NOT_FOUND', 'Week not found.');
         await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
+        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+        await Promise.allSettled(week.games.map((g) => syncSingleGamePost(interaction.guildId, g.id, context, interaction.client)));
         const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId, week.id);
         const payload = renderLineupDashboard(week, summary);
         await interaction.reply({
             ephemeral: true,
-            content: '🔄 Lineup Dashboard refreshed in <#1557879793809096824>!',
+            content: '🔄 Lineup Dashboard, availability board, and game cards refreshed!',
             embeds: payload.embeds,
             components: payload.components,
         });

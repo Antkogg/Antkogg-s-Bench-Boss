@@ -6,7 +6,7 @@ import { gameOpponentLabel } from '../renderers/schedule.renderer.js';
 import { DEFAULT_MANAGEMENT_ROLE_ID, DEFAULT_ROSTER_ROLE_ID, DEFAULT_TC_ROLE_ID, DEFAULT_TEAM_ROLE_ID, } from '../config/constants.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
-import { syncAvailabilityPost } from '../commands/schedule.js';
+import { syncAvailabilityPost, syncLineupDashboard, syncSingleGamePost, } from '../commands/schedule.js';
 export function resolveMemberTeamStatus(member, config) {
     if (!member)
         return 'ROSTER';
@@ -60,6 +60,14 @@ export async function checkTeamRole(interaction, configRosterRoleId, configTcRol
     }
     return false;
 }
+export async function syncAllWeekPosts(guildId, weekId, context, client) {
+    const updatedWeek = await context.weeklyAvailability.getWeek(weekId);
+    if (!updatedWeek)
+        return;
+    await syncAvailabilityPost(guildId, updatedWeek, context, client);
+    syncLineupDashboard(guildId, updatedWeek, context, client).catch(() => null);
+    await Promise.allSettled(updatedWeek.games.map((g) => syncSingleGamePost(guildId, g.id, context, client)));
+}
 export async function handleWeeklyAvailabilityButton(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Submit availability inside the server.');
@@ -91,14 +99,11 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
             weekId: week.id,
             gameIds,
         });
-        const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
-        if (updatedWeek) {
-            await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
-        }
+        await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
         await interaction.editReply({
             embeds: [
                 renderSuccess('Availability Saved!', `🟢 Marked you **AVAILABLE** for all **${week.games.length}** games this week!\n` +
-                    `The team availability board has been updated.`),
+                    `The team availability board and all individual game cards have been updated.`),
             ],
         });
         return;
@@ -112,14 +117,11 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
             weekId: week.id,
             gameIds: [],
         });
-        const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
-        if (updatedWeek) {
-            await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
-        }
+        await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
         await interaction.editReply({
             embeds: [
                 renderSuccess('Availability Saved', `🔴 Marked you **OUT** for all games this week.\n` +
-                    `The team availability board has been updated.`),
+                    `The team availability board and all individual game cards have been updated.`),
             ],
         });
         return;
@@ -212,10 +214,7 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
     // 4. Refresh board
     if (parsed.value === 'refresh') {
         await interaction.deferUpdate();
-        const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
-        if (updatedWeek) {
-            await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
-        }
+        await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
         return;
     }
 }
@@ -276,14 +275,11 @@ export async function handleWeeklyAvailabilitySelect(interaction, context, parse
         weekId: parsed.entityId,
         gameIds: selectedGameIds,
     });
-    const updatedWeek = await context.weeklyAvailability.getWeek(week.id);
-    if (updatedWeek) {
-        await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
-    }
+    await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
     await interaction.editReply({
         embeds: [
             renderSuccess('Availability Saved!', `✅ Updated your availability: **${selectedGameIds.length} of ${week.games.length}** games selected as AVAILABLE.\n` +
-                `The team availability board has been updated.`),
+                `The team availability board and all individual game cards have been updated.`),
         ],
     });
 }
