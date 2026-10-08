@@ -210,6 +210,7 @@ export async function handleLineupButton(interaction, context, parsed) {
     }
     // Lock Weekly Lines
     if (parsed.value === 'lock-lines') {
+        await interaction.deferReply({ ephemeral: true });
         const result = await context.schedule.lockWeeklyLines(interaction.guildId, parsed.entityId, interaction.user.id);
         let dmCount = 0;
         for (const del of result.deliveries) {
@@ -229,8 +230,7 @@ export async function handleLineupButton(interaction, context, parsed) {
         const warning = result.openSpots > 0
             ? `\n⚠️ **${result.openSpots} lineup spot(s) were still open.**`
             : '';
-        await interaction.reply({
-            ephemeral: true,
+        await interaction.editReply({
             embeds: [
                 renderSuccess('Weekly Lines Locked', `🔒 Finalized schedule for **${result.week.label}**!\n` +
                     `Delivered personalized schedule DMs to **${dmCount} player(s)**.${warning}\n` +
@@ -241,6 +241,7 @@ export async function handleLineupButton(interaction, context, parsed) {
     }
     // Master Availability Sheet
     if (parsed.value === 'avail-sheet') {
+        await interaction.deferReply({ ephemeral: true });
         let week = await context.schedule.getWeek(parsed.entityId);
         if (!week) {
             const g = await context.schedule.game(parsed.entityId);
@@ -298,14 +299,14 @@ export async function handleLineupButton(interaction, context, parsed) {
             (outAll.length ? outAll.join(', ').slice(0, 950) : '*None*') +
             `\n\n⚪ **NO RESPONSE YET (${noResponse.length}):**\n` +
             (noResponse.length ? noResponse.join(', ').slice(0, 950) : '*None*'));
-        await interaction.reply({
-            ephemeral: true,
+        await interaction.editReply({
             embeds: [embed],
         });
         return;
     }
     // Refresh Dashboard
     if (parsed.value === 'refresh-dashboard') {
+        await interaction.deferReply({ ephemeral: true });
         let week = await context.schedule.getWeek(parsed.entityId);
         if (!week) {
             const g = await context.schedule.game(parsed.entityId);
@@ -319,8 +320,7 @@ export async function handleLineupButton(interaction, context, parsed) {
         await Promise.allSettled(week.games.map((g) => syncSingleGamePost(interaction.guildId, g.id, context, interaction.client)));
         const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId, week.id);
         const payload = renderLineupDashboard(week, summary);
-        await interaction.reply({
-            ephemeral: true,
+        await interaction.editReply({
             content: '🔄 Lineup Dashboard, availability board, and game cards refreshed!',
             embeds: payload.embeds,
             components: payload.components,

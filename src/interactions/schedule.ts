@@ -299,6 +299,7 @@ export async function handleLineupButton(
 
   // Lock Weekly Lines
   if (parsed.value === 'lock-lines') {
+    await interaction.deferReply({ ephemeral: true });
     const result = await context.schedule.lockWeeklyLines(
       interaction.guildId,
       parsed.entityId,
@@ -330,8 +331,7 @@ export async function handleLineupButton(
         ? `\n⚠️ **${result.openSpots} lineup spot(s) were still open.**`
         : '';
 
-    await interaction.reply({
-      ephemeral: true,
+    await interaction.editReply({
       embeds: [
         renderSuccess(
           'Weekly Lines Locked',
@@ -346,6 +346,7 @@ export async function handleLineupButton(
 
   // Master Availability Sheet
   if (parsed.value === 'avail-sheet') {
+    await interaction.deferReply({ ephemeral: true });
     let week = await context.schedule.getWeek(parsed.entityId);
     if (!week) {
       const g = await context.schedule.game(parsed.entityId);
@@ -407,8 +408,7 @@ export async function handleLineupButton(
           (noResponse.length ? noResponse.join(', ').slice(0, 950) : '*None*'),
       );
 
-    await interaction.reply({
-      ephemeral: true,
+    await interaction.editReply({
       embeds: [embed],
     });
     return;
@@ -416,6 +416,7 @@ export async function handleLineupButton(
 
   // Refresh Dashboard
   if (parsed.value === 'refresh-dashboard') {
+    await interaction.deferReply({ ephemeral: true });
     let week = await context.schedule.getWeek(parsed.entityId);
     if (!week) {
       const g = await context.schedule.game(parsed.entityId);
@@ -429,8 +430,7 @@ export async function handleLineupButton(
     );
     const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId!, week.id);
     const payload = renderLineupDashboard(week as any, summary);
-    await interaction.reply({
-      ephemeral: true,
+    await interaction.editReply({
       content: '🔄 Lineup Dashboard, availability board, and game cards refreshed!',
       embeds: payload.embeds,
       components: payload.components,
