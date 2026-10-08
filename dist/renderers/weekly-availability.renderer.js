@@ -1,17 +1,23 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { customId } from '../utils/custom-id.js';
 import { brandedEmbed } from './design.js';
-import { gameOpponentLabel } from './schedule.renderer.js';
-const POSITIONS = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
+import { localWeekday } from '../domain/schedule-time.js';
 export function renderWeeklyAvailability(week, rosterMembers) {
     const games = week.games.filter((game) => game.status !== 'CANCELLED');
-    const roleId = week.guildConfig?.rosterRoleId;
-    const embed = brandedEmbed()
-        .setTitle(`🏒 S55 BU TEAM AVAILABILITY & LINEUPS`)
-        .setDescription(`📌 **Mark your availability for this week below!** Times show in your local time.\n` +
-        (roleId ? `Role: <@&${roleId}> • ` : '') +
+    const rosterRoleId = week.guildConfig?.rosterRoleId;
+    const tcRoleId = week.guildConfig?.tcRoleId;
+    const roleText = [
+        rosterRoleId ? `Roster: <@&${rosterRoleId}>` : null,
+        tcRoleId ? `TC: <@&${tcRoleId}>` : null,
+    ]
+        .filter(Boolean)
+        .join(' • ');
+    const embed = brandedEmbed(0xcc0000)
+        .setTitle(`🏒 S55 BOSTON UNIVERSITY • ${week.label.toUpperCase()} SCHEDULE & AVAILABILITY`)
+        .setDescription(`📌 **Mark your weekly availability below!** Times show in your local time.\n` +
+        (roleText ? `${roleText} • ` : '') +
         `**${games.length} Games Scheduled**\n` +
-        `─────────────────────────────────────`);
+        `*Individual game cards with full rosters & room codes are posted below!*`);
     if (!games.length) {
         embed.addFields({
             name: '⚠️ NO GAMES SCHEDULED YET',
@@ -20,42 +26,75 @@ export function renderWeeklyAvailability(week, rosterMembers) {
         });
     }
     else {
-        for (let i = 0; i < games.length; i++) {
-            const game = games[i];
-            const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
-            const label = gameOpponentLabel(game);
-            // Starters from lineup
-            const lineupMap = new Map();
-            for (const pos of POSITIONS) {
-                const assignment = game.lineup?.find((l) => l.position === pos);
-                lineupMap.set(pos, assignment ? `<@${assignment.player.discordUserId}>` : '*Open*');
-            }
-            const forwardLine = `\`LW\` ${lineupMap.get('LW')} ┃ \`C\` ${lineupMap.get('C')} ┃ \`RW\` ${lineupMap.get('RW')}`;
-            const defenseLine = `\`LD\` ${lineupMap.get('LD')} ┃ \`RD\` ${lineupMap.get('RD')} ┃ \`G\` ${lineupMap.get('G')}`;
-            // Player availability responses
-            const availablePlayers = (game.responses ?? [])
-                .filter((r) => r.status === 'AVAILABLE')
-                .map((r) => {
-                const p = r.submission.player;
-                const pos = p.signupPositions?.length ? ` *(${p.signupPositions.join('/')})*` : '';
-                return `<@${p.discordUserId}>${pos}`;
-            });
-            const outPlayers = (game.responses ?? [])
-                .filter((r) => r.status === 'UNAVAILABLE')
-                .map((r) => `<@${r.submission.player.discordUserId}>`);
-            const serverCode = game.gameServer || game.gameCode
-                ? `🎮 \`Server:\` **${game.gameServer ?? 'TBD'}** ┃ \`Code:\` **${game.gameCode ?? 'TBD'}**\n`
-                : '';
-            const fieldValue = `⏰ **<t:${timeUnix}:F>** (<t:${timeUnix}:R>)\n` +
-                serverCode +
-                `📋 **Lineup:** ${forwardLine} • ${defenseLine}\n` +
-                `🟢 **Available (${availablePlayers.length}):** ${availablePlayers.length ? availablePlayers.join(', ') : '*None yet*'}\n` +
-                `🔴 **Out (${outPlayers.length}):** ${outPlayers.length ? outPlayers.join(', ') : '*None*'}`;
+        const tz = week.guildConfig?.timezone ?? 'America/Denver';
+        const gamesByDay = {
+            SUNDAY: [],
+            MONDAY: [],
+            TUESDAY: [],
+            OTHER: [],
+        };
+        games.forEach((g) => {
+            const day = localWeekday(g.scheduledAtUtc, tz);
+            (gamesByDay[day] ?? gamesByDay.OTHER).push(g);
+        });
+        const formatDayBlock = (dayGames) => {
+            if (!dayGames.length)
+                return '*No games scheduled*';
+            return dayGames
+                .map((g) => {
+                const idx = games.indexOf(g) + 1;
+                const timeUnix = Math.floor(g.scheduledAtUtc.getTime() / 1000);
+                const opponent = g.opponentNameSnapshot ?? 'TBD';
+                const matchup = g.homeAway === 'AWAY' ? `@ **${opponent}**` : `vs **${opponent}**`;
+                const availCount = (g.responses ?? []).filter((r) => r.status === 'AVAILABLE').length;
+                const assignedCount = (g.lineup ?? []).length;
+                const lineupStatus = assignedCount === 6
+                    ? '✅ `Lineup Set`'
+                    : assignedCount > 0
+                        ? `▫️ \`${assignedCount}/6 Set\``
+                        : '⚪ `Open`';
+                return `**Game ${idx}** • <t:${timeUnix}:t> • ${matchup} ┃ 🟢 \`${availCount}\` in ┃ ${lineupStatus}`;
+            })
+                .join('\n');
+        };
+        if (gamesByDay.SUNDAY.length) {
             embed.addFields({
-                name: `🏒 GAME ${i + 1} • ${label}`,
-                value: fieldValue.slice(0, 1024),
+                name: `📅 SUNDAY (${gamesByDay.SUNDAY.length} Games)`,
+                value: formatDayBlock(gamesByDay.SUNDAY),
+                inline: false,
             });
         }
+        if (gamesByDay.MONDAY.length) {
+            embed.addFields({
+                name: `📅 MONDAY (${gamesByDay.MONDAY.length} Games)`,
+                value: formatDayBlock(gamesByDay.MONDAY),
+                inline: false,
+            });
+        }
+        if (gamesByDay.TUESDAY.length) {
+            embed.addFields({
+                name: `📅 TUESDAY (${gamesByDay.TUESDAY.length} Games)`,
+                value: formatDayBlock(gamesByDay.TUESDAY),
+                inline: false,
+            });
+        }
+        if (gamesByDay.OTHER.length) {
+            embed.addFields({
+                name: `📅 OTHER GAMES (${gamesByDay.OTHER.length} Games)`,
+                value: formatDayBlock(gamesByDay.OTHER),
+                inline: false,
+            });
+        }
+        // Submission summary
+        const totalSubmissions = week.submissions?.length ?? 0;
+        const rosterSubmitted = (week.submissions ?? []).filter((s) => s.player.teamStatus === 'ROSTER').length;
+        const tcSubmitted = (week.submissions ?? []).filter((s) => s.player.teamStatus === 'TC').length;
+        embed.addFields({
+            name: '📊 SUBMISSION SUMMARY',
+            value: `✅ **${totalSubmissions} Submitted** (${rosterSubmitted} Active Roster • ${tcSubmitted} TC/ECU)\n` +
+                `👇 *Click **Available for ALL** below to mark full week availability in 1 click!*`,
+            inline: false,
+        });
     }
     // Pending roster members who haven't responded yet
     if (rosterMembers && rosterMembers.length) {
@@ -63,34 +102,40 @@ export function renderWeeklyAvailability(week, rosterMembers) {
         const pending = rosterMembers.filter((m) => !submittedIds.has(m.id));
         if (pending.length) {
             embed.addFields({
-                name: `⚪ PENDING RESPONSES (${pending.length})`,
+                name: `⚪ PENDING ROSTER RESPONSES (${pending.length})`,
                 value: pending
-                    .slice(0, 25)
+                    .slice(0, 20)
                     .map((m) => `<@${m.id}>`)
                     .join(', ')
                     .slice(0, 1024),
             });
         }
     }
-    // Row 1: Player Availability Buttons (1 Click)
+    // Row 1: Player Availability & Schedule Buttons
     const playerRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId(customId('weekly-availability', week.id, 'avail-all'))
         .setLabel('🟢 Available for ALL')
         .setStyle(ButtonStyle.Success), new ButtonBuilder()
+        .setCustomId(customId('weekly-availability', week.id, 'pick'))
+        .setLabel('⚙️ Custom Pick')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('weekly-availability', week.id, 'my-schedule'))
+        .setLabel('📅 My Schedule')
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('weekly-availability', week.id, 'unavailable'))
         .setLabel('🔴 Out for ALL')
-        .setStyle(ButtonStyle.Danger), new ButtonBuilder()
-        .setCustomId(customId('weekly-availability', week.id, 'pick'))
-        .setLabel('⚙️ Pick Games')
-        .setStyle(ButtonStyle.Secondary));
+        .setStyle(ButtonStyle.Danger));
     // Row 2: Management Controls
     const mgmtRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'night-prompt'))
+        .setLabel('⚡ Night Lineup')
+        .setStyle(ButtonStyle.Success), new ButtonBuilder()
         .setCustomId(customId('lineup-action', week.id, 'choose-game'))
-        .setLabel('📋 Set Lineups')
+        .setLabel('📋 Set Lineup')
         .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('week-action', week.id, 'quick-add'))
-        .setLabel('➕ Add Game')
-        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'lock-lines'))
+        .setLabel('🔒 Lock Weekly Lines')
+        .setStyle(ButtonStyle.Danger), new ButtonBuilder()
         .setCustomId(customId('weekly-availability', week.id, 'refresh'))
         .setLabel('🔄 Refresh')
         .setStyle(ButtonStyle.Secondary));

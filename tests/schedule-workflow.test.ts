@@ -333,4 +333,158 @@ describe('regular-season scheduling workflow', () => {
     );
     expect(result.id).toBe('auto-week-1');
   });
+
+  it('assigns an entire night lineup to all games of that night in a single operation', async () => {
+    const sundayGame1 = {
+      id: 'g-sun-1',
+      scheduledAtUtc: new Date('2026-10-04T21:00:00-04:00'),
+      status: 'SCHEDULED',
+    };
+    const sundayGame2 = {
+      id: 'g-sun-2',
+      scheduledAtUtc: new Date('2026-10-04T21:35:00-04:00'),
+      status: 'SCHEDULED',
+    };
+    const week = {
+      id: 'week-1',
+      label: 'Week 1',
+      guildConfig: { id: 'cfg-1', guildId: 'guild-1', timezone: 'America/New_York' },
+      games: [sundayGame1, sundayGame2],
+    };
+
+    const deleteMany = vi.fn(async () => ({ count: 0 }));
+    const create = vi.fn(async () => ({}));
+    const findFirstAvail = vi.fn(async () => ({ status: 'AVAILABLE' }));
+
+    const tx = {
+      gameLineupAssignment: { deleteMany, create },
+      playerGameAvailability: { findFirst: findFirstAvail },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+
+    const prisma = {
+      guildConfig: { upsert: vi.fn(async () => ({ id: 'cfg-1', timezone: 'America/New_York' })) },
+      seasonWeek: { findUnique: vi.fn(async () => week) },
+      $transaction: async (cb: any) => cb(tx),
+    } as unknown as PrismaClient;
+
+    const service = new ScheduleService(prisma);
+    const result = await service.assignNightLineup({
+      guildId: 'guild-1',
+      weekId: 'week-1',
+      day: 'SUNDAY',
+      lineup: {
+        LW: 'player-lw',
+        C: 'player-c',
+        RW: 'player-rw',
+        LD: 'player-ld',
+        RD: 'player-rd',
+        G: 'player-g',
+      },
+      actorDiscordId: 'manager-1',
+    });
+
+    expect(result.gamesUpdated).toBe(2);
+    // 2 games * 6 positions = 12 creates
+    expect(create).toHaveBeenCalledTimes(12);
+  });
+
+  it('retrieves personalized player weekly schedule with grouped games', async () => {
+    const sundayGame = {
+      id: 'g-1',
+      scheduledAtUtc: new Date('2026-10-04T21:00:00-04:00'),
+      status: 'SCHEDULED',
+      opponentNameSnapshot: 'Leafs',
+      homeAway: 'HOME',
+      gameServer: 'East 1',
+      gameCode: 'ABC',
+      lineup: [{ playerId: 'player-1', position: 'LW' }],
+    };
+    const week = {
+      id: 'week-1',
+      label: 'Week 1',
+      guildConfig: { id: 'cfg-1', guildId: 'guild-1', timezone: 'America/New_York' },
+      games: [sundayGame],
+    };
+
+    const prisma = {
+      guildConfig: {
+        findUnique: vi.fn(async () => ({ id: 'cfg-1', timezone: 'America/New_York' })),
+        upsert: vi.fn(async () => ({ id: 'cfg-1', timezone: 'America/New_York' })),
+      },
+      seasonWeek: { findUnique: vi.fn(async () => week) },
+      player: {
+        findFirst: vi.fn(async () => ({
+          id: 'player-1',
+          discordUserId: 'user-1',
+          gamertagSnapshot: 'PlayerOne',
+        })),
+      },
+    } as unknown as PrismaClient;
+
+    const service = new ScheduleService(prisma);
+    const schedule = await service.getPlayerWeeklySchedule('guild-1', 'user-1', 'week-1');
+
+    expect(schedule).not.toBeNull();
+    expect(schedule?.totalGames).toBe(1);
+    expect(schedule?.assignedGames[0]?.position).toBe('LW');
+    expect(schedule?.assignedGames[0]?.day).toBe('SUNDAY');
+  });
+
+  it('locks weekly lines and produces DM delivery breakdown for scheduled players', async () => {
+    const game1 = {
+      id: 'g-1',
+      status: 'SCHEDULED',
+      lineup: [
+        {
+          position: 'LW',
+          playerId: 'p-1',
+          player: { id: 'p-1', discordUserId: 'user-1', gamertagSnapshot: 'User1' },
+        },
+        {
+          position: 'C',
+          playerId: 'p-2',
+          player: { id: 'p-2', discordUserId: 'user-2', gamertagSnapshot: 'User2' },
+        },
+      ],
+    };
+    const week = {
+      id: 'week-1',
+      label: 'Week 1',
+      guildConfig: { id: 'cfg-1', guildId: 'guild-1' },
+      games: [game1],
+    };
+
+    const updateMany = vi.fn(async () => ({ count: 2 }));
+    const updateWeek = vi.fn(async () => ({ id: 'week-1', status: 'LOCKED' }));
+
+    const tx = {
+      gameLineupAssignment: { updateMany },
+      seasonWeek: { update: updateWeek },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+
+    const prisma = {
+      guildConfig: { upsert: vi.fn(async () => ({ id: 'cfg-1', guildId: 'guild-1' })) },
+      seasonWeek: { findUnique: vi.fn(async () => week) },
+      $transaction: async (cb: any) => cb(tx),
+    } as unknown as PrismaClient;
+
+    const service = new ScheduleService(prisma);
+    const locked = await service.lockWeeklyLines('guild-1', 'week-1', 'manager-1');
+
+    expect(locked.openSpots).toBe(4); // 6 positions - 2 filled = 4 open
+    expect(locked.deliveries).toHaveLength(2);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ confirmed: true }),
+      }),
+    );
+    expect(updateWeek).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'LOCKED' }),
+      }),
+    );
+  });
 });
+

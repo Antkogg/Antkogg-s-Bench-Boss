@@ -16,6 +16,7 @@ import { brandedEmbed } from '../renderers/design.js';
 import { renderIndividualGamePost } from '../renderers/schedule.renderer.js';
 import { customId, type ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
+import { syncAvailabilityPost } from './schedule.js';
 
 export async function handlePostWeek(
   interaction: ChatInputCommandInteraction,
@@ -221,7 +222,7 @@ async function executePostWeek(
     );
   }
 
-  // Fetch complete week and publish individual games to availability channel
+  // Fetch complete week and publish to availability channel
   const fullWeek = await context.schedule.getWeek(seasonWeek.id);
   const channelId = config.teamAvailabilityChannelId || DEFAULT_AVAILABILITY_CHANNEL_ID;
   const postChannel = (await interaction.client.channels.fetch(channelId).catch(() => null)) as any;
@@ -229,6 +230,53 @@ async function executePostWeek(
 
   if (postChannel && postChannel.isTextBased() && fullWeek) {
     channelMention = `<#${postChannel.id}>`;
+
+    // 1. Clear old week messages from the channel and lock past weeks
+    const otherWeeks = await context.prisma.seasonWeek.findMany({
+      where: {
+        guildConfigId: config.id,
+        id: { not: seasonWeek.id },
+      },
+      include: { games: true },
+    });
+
+    for (const prevWeek of otherWeeks) {
+      if (prevWeek.messageId) {
+        const m = await postChannel.messages.fetch(prevWeek.messageId).catch(() => null);
+        if (m) await m.delete().catch(() => null);
+      }
+      for (const g of prevWeek.games) {
+        if (g.notes) {
+          const m = await postChannel.messages.fetch(g.notes).catch(() => null);
+          if (m) await m.delete().catch(() => null);
+        }
+      }
+      if (prevWeek.status === 'OPEN') {
+        await context.prisma.seasonWeek.update({
+          where: { id: prevWeek.id },
+          data: { status: 'LOCKED' },
+        }).catch(() => null);
+      }
+    }
+
+    // If re-posting the current week, delete its previous messages to avoid duplicates
+    if (seasonWeek.games?.length) {
+      for (const g of seasonWeek.games) {
+        if (g.notes) {
+          const m = await postChannel.messages.fetch(g.notes).catch(() => null);
+          if (m) await m.delete().catch(() => null);
+        }
+      }
+    }
+    if (seasonWeek.messageId) {
+      const m = await postChannel.messages.fetch(seasonWeek.messageId).catch(() => null);
+      if (m) await m.delete().catch(() => null);
+    }
+
+    // 2. Post weekly overview board
+    await syncAvailabilityPost(guildId, fullWeek as any, context, interaction.client);
+
+    // 3. Post individual game cards
     const activeGames = fullWeek.games.filter((g: any) => g.status !== 'CANCELLED');
     for (let i = 0; i < activeGames.length; i++) {
       const g = activeGames[i]!;

@@ -50,6 +50,8 @@ import {
   handleLineupPlayerSelect,
   handleLineupPositionSelect,
   handleLineupUserSelect,
+  handleNightPlayerSelect,
+  handleNightPosSelect,
   handlePlayerGameButton,
   handleQuickGameModal,
   handleWeekButton,
@@ -154,9 +156,13 @@ export async function routeInteraction(
       )
         await handleWeekGameSelect(interaction, context);
       else if (parsed.action === 'lineup-position-select')
-        await handleLineupPositionSelect(interaction, context);
+        await handleLineupPositionSelect(interaction, context, parsed);
       else if (parsed.action === 'lineup-player-select')
         await handleLineupPlayerSelect(interaction, context, parsed);
+      else if (parsed.action === 'night-pos-select')
+        await handleNightPosSelect(interaction, context, parsed);
+      else if (parsed.action === 'night-player-select')
+        await handleNightPlayerSelect(interaction, context, parsed);
       else if (parsed.action === 'game-status-select')
         await handleGameStatusSelect(interaction, context, parsed);
       else await handleSelectMenu(interaction, context, parsed);

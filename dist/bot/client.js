@@ -72,11 +72,13 @@ export function createLgAssistantApp(env) {
     const reminders = new ScoutingReminderJob(prisma, scouting, notifications);
     const availabilityReminders = new WeeklyAvailabilityReminderJob(prisma, weeklyAvailability, notifications);
     const gameDayReminders = new GameDayReminderJob(prisma, notifications);
-    client.on('guildMemberAdd', (member) => void welcome.handleMemberAdd(member));
+    // guildMemberAdd onboarding is disabled - managers manually assign team roles
+    // client.on('guildMemberAdd', (member) => void welcome.handleMemberAdd(member));
     client.on('interactionCreate', (interaction) => void routeInteraction(interaction, context));
     client.once('ready', (readyClient) => {
         logger.info({ user: readyClient.user.tag, guilds: readyClient.guilds.cache.size }, "Antkogg's LG Assistant is ready");
-        reminders.start();
+        // Scouting reminders disabled (scouting feature removed)
+        // reminders.start();
         availabilityReminders.start();
         gameDayReminders.start();
     });

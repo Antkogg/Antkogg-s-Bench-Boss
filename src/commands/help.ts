@@ -22,71 +22,62 @@ export async function handleHelp(
 
   const embed = isManager
     ? brandedEmbed()
-        .setTitle("MANAGEMENT GUIDE  •  ANTKOGG'S LG ASSISTANT")
+        .setTitle("TEAM MANAGEMENT GUIDE  •  BENCH BOSS")
         .setDescription(
-          'Controls for creating scouting sessions, managing rosters, availability, and server setup.',
+          'Quick reference for schedule, availability, lineups, and game setup.',
         )
         .addFields(
           {
-            name: '1 • ADDING GAMES (SUPER SIMPLE)',
+            name: '1 • SCHEDULE & GAMES',
             value:
-              '`/add-game` — Add a game with opponent, date, time (e.g. `/add-game opponent:Bruins date:Sunday time:8:30 PM`). No setup required! Automatically posts to `#team-availability`.\n`/set-code` — Set server name and game code for upcoming games.\n`/games` or `/schedule` — View weekly schedule and lineup cards.\n`/delete-game` — Remove any game from the schedule.',
+              '`/add-game` — Add a game (opponent, date, time, server, code).\n' +
+              '`/add-games` — Bulk add games by pasting your schedule.\n' +
+              '`/delete-game` — Remove a game from the schedule.\n' +
+              '`/post-week` — Post the week schedule and individual game cards to `#team-availability`.\n' +
+              '`/games` — View this week’s games and lineups.',
           },
           {
-            name: '2 • LINEUP & ROSTER CONTROLS',
+            name: '2 • GAME INFO & LINEUPS',
             value:
-              'Click **Build Lineup** to select players directly from Discord or registered team roster.\nClick **Confirm Lineup** when ready — confirmed players receive reminders and can check `/game`.',
+              '`/set-code` — Set server name and game code (or click on any game card).\n' +
+              '`/lineup` — Set starters for a game (or click **Set Lineup** directly on the game card).\n' +
+              'Click **Confirm Lineup** on any game card to confirm starters and send automatic DMs.',
           },
           {
-            name: '3 • SCOUTING SESSIONS',
+            name: '3 • PLAYER POSITIONS',
             value:
-              '`/scout create` — Create a new scouting session (One-side or 6v6).\n`/scout panel` — Master management control panel.\n`/scouting` — Browse upcoming sessions.',
+              '`/set-position` — Assign a player’s position (LW, C, RW, LD, RD, G).\n' +
+              '`/set-positions` — View and edit positions for all roster players.',
           },
           {
-            name: '4 • TEAM & PLAYER MANAGEMENT',
+            name: '4 • AVAILABILITY & SETUP',
             value:
-              '`/player` — Search players, view activity logs, and edit status.\n`/team` & `/tc` — Manage roster and Training Camp players.',
-          },
-          {
-            name: '5 • SERVER CONFIGURATION',
-            value:
-              '`/setup` — Configure management roles, channels, and defaults.\n`/rules` — Manage rule documents for `/builds` and `/disconnect`.',
+              '`/availability missing` — View players who have not submitted availability yet.\n' +
+              '`/setup view` / `/setup roles` — Configure team role and settings.',
           },
         )
     : brandedEmbed()
-        .setTitle("PLAYER GUIDE  •  ANTKOGG'S LG ASSISTANT")
+        .setTitle("PLAYER GUIDE  •  BENCH BOSS")
         .setDescription(
-          'Join scouting games, submit weekly availability, and check official rules—right inside Discord.',
+          'How to submit availability and check your game lineup info.',
         )
         .addFields(
           {
-            name: '1 • FIND SCOUTING',
-            value: 'Run `/scouting` or check your server’s scouting channel for upcoming games.',
+            name: '1 • SUBMIT AVAILABILITY',
+            value:
+              'Go to `#team-availability` and click **Available** or **Unavailable** on individual game cards.\n' +
+              'You can also click **Available for Day** to set recurring availability for all games that day.\n' +
+              '*(Only players with the team role can submit)*',
           },
           {
-            name: '2 • CLAIM A SPOT',
+            name: '2 • CHECK YOUR GAMES',
             value:
-              'Tap any position button (**LW**, **C**, **RW**, **LD**, **RD**, **G**) on a scouting post. You are confirmed immediately with zero sign-up required!',
+              '`/game` — View your next confirmed game, start time, server, and password.\n' +
+              '`/games` — View the full schedule and active lineups.',
           },
           {
-            name: '3 • SWITCH OR LEAVE',
-            value:
-              'Tap another position to switch spots, or tap **Leave Game** to release your spot for waitlisted players.',
-          },
-          {
-            name: '4 • WEEKLY AVAILABILITY',
-            value:
-              'Use the weekly availability post to mark when you can play, or run `/availability mine` to check your submission.',
-          },
-          {
-            name: '5 • GAME DAY & RULES',
-            value:
-              'Run `/game` to see your next confirmed game details, or check `/rules`, `/builds`, and `/disconnect` for official league rules.',
-          },
-          {
-            name: '6 • PROFILE (OPTIONAL)',
-            value:
-              'Run `/profile` at any time if you want to view your stats or update your EA Tag / LG Username.',
+            name: '3 • CHECK YOUR AVAILABILITY',
+            value: '`/availability mine` — See which games you are currently marked available for.',
           },
         );
 

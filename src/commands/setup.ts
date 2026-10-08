@@ -113,18 +113,28 @@ export async function handleSetup(
       return;
     }
     if (subcommand === 'channels') {
-    const scouting = interaction.options.getChannel('scouting', true);
+    const existing = await context.config.get(interaction.guildId);
+    const scouting = interaction.options.getChannel('scouting');
     const management = interaction.options.getChannel('management');
+    const availability = interaction.options.getChannel('availability');
+    const announcements = interaction.options.getChannel('team_announcements');
+    const rules = interaction.options.getChannel('rules');
     await context.config.update({
       guildId: interaction.guildId,
       actorDiscordId: interaction.user.id,
-      scoutingChannelId: scouting.id,
-      managementChannelId: management?.id ?? null,
+      scoutingChannelId: scouting ? scouting.id : (existing?.scoutingChannelId ?? null),
+      managementChannelId: management ? management.id : (existing?.managementChannelId ?? null),
       scoutingAnnouncementsChannelId:
-        interaction.options.getChannel('scouting_announcements')?.id ?? null,
-      teamAvailabilityChannelId: interaction.options.getChannel('availability')?.id ?? null,
-      teamAnnouncementsChannelId: interaction.options.getChannel('team_announcements')?.id ?? null,
-      rulesChannelId: interaction.options.getChannel('rules')?.id ?? null,
+        interaction.options.getChannel('scouting_announcements')?.id ??
+        existing?.scoutingAnnouncementsChannelId ??
+        null,
+      teamAvailabilityChannelId: availability
+        ? availability.id
+        : (existing?.teamAvailabilityChannelId ?? null),
+      teamAnnouncementsChannelId: announcements
+        ? announcements.id
+        : (existing?.teamAnnouncementsChannelId ?? null),
+      rulesChannelId: rules ? rules.id : (existing?.rulesChannelId ?? null),
     });
   } else if (subcommand === 'roles') {
     const positionRoleIds = Object.fromEntries(

@@ -196,7 +196,6 @@ export class WeeklyAvailabilityService {
         const players = await this.prisma.player.findMany({
             where: {
                 guildConfigId: week.guildConfigId,
-                registered: true,
                 teamStatus: filter.teamStatus ?? { in: ['ROSTER', 'TC'] },
                 ...(filter.positionGroup ? { positionGroup: filter.positionGroup } : {}),
             },

@@ -56,6 +56,7 @@ export async function getOrCreatePlayer(
         signupPositions: [],
         positionGroup: 'FORWARD',
         registered: true,
+        teamStatus: 'ROSTER',
       },
     });
   } else if (player && user.discordDisplayName && player.discordDisplayName !== user.discordDisplayName && 'player' in prisma && prisma.player && typeof prisma.player.update === 'function') {

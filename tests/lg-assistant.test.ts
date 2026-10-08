@@ -6,24 +6,24 @@ import { chunkRuleText, OFFICIAL_RULE_CATALOG } from '../src/services/rules.serv
 import { WeeklyAvailabilityService } from '../src/services/weekly-availability.service.js';
 
 describe("Antkogg's LG Assistant expansion", () => {
-  it('registers the complete player, team, TC, rules, and announcement command surface', () => {
+  it('registers the streamlined team, schedule, and availability command surface', () => {
     const names = commandDefinitions.map((command) => command.name);
     expect(names).toEqual(
       expect.arrayContaining([
-        'profile',
-        'scouting',
-        'availability',
-        'timezone',
-        'week',
+        'help',
+        'games',
         'schedule',
         'game',
-        'team',
-        'tc',
-        'rules',
-        'rule',
-        'builds',
-        'disconnect',
-        'announce',
+        'add-game',
+        'add-games',
+        'delete-game',
+        'post-week',
+        'lineup',
+        'set-code',
+        'set-position',
+        'set-positions',
+        'availability',
+        'setup',
       ]),
     );
   });

@@ -10,6 +10,7 @@ import type {
 } from '../generated/prisma/client.js';
 import { customId } from '../utils/custom-id.js';
 import { brandedEmbed, discordTimestamp } from './design.js';
+import { getTeamColor } from '../domain/ncaa-teams.js';
 
 export type ScheduleGame = WeeklyGame & {
   responses?: Array<
@@ -293,9 +294,6 @@ export function renderIndividualGamePost(
   const timeUnix = Math.floor(game.scheduledAtUtc.getTime() / 1000);
   const isAway = game.homeAway === 'AWAY';
   const opponentFullName = game.opponentNameSnapshot ?? 'Opponent';
-  const opponentShortName = opponentFullName
-    .replace(/\s+(Falcons|Bulldogs|Fighting Hawks|Hawks|Big Green|Bobcats|Huskies|Mavericks)$/i, '')
-    .toUpperCase();
 
   const matchupLine = isAway
     ? `Boston University @ ${opponentFullName}`
@@ -303,25 +301,16 @@ export function renderIndividualGamePost(
 
   const homeAwayTag = isAway ? 'AWAY @' : 'HOME vs';
 
-  const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Edmonton' }).toFormat('cccc');
+  const dayName = DateTime.fromJSDate(game.scheduledAtUtc, { zone: 'America/Denver' }).toFormat('cccc');
 
   const formatSlot = (pos: 'LW' | 'C' | 'RW' | 'LD' | 'RD' | 'G') => {
     const assignment = game.lineup?.find((l) => l.position === pos);
     if (assignment) {
-      return `<@${assignment.player.discordUserId}>`;
+      const badge = assignment.confirmed ? '✅ ' : '▫️ ';
+      return `${badge}<@${assignment.player.discordUserId}>`;
     }
-    return 'Open';
+    return '*Open*';
   };
-
-  const forwardsText =
-    `LW — ${formatSlot('LW')}\n` +
-    `C — ${formatSlot('C')}\n` +
-    `RW — ${formatSlot('RW')}`;
-
-  const defenseText =
-    `LD — ${formatSlot('LD')}\n` +
-    `RD — ${formatSlot('RD')}\n` +
-    `G — ${formatSlot('G')}`;
 
   const availablePlayers = (game.responses ?? [])
     .filter((r) => r.status === 'AVAILABLE')
@@ -331,77 +320,66 @@ export function renderIndividualGamePost(
     .filter((r) => r.status === 'UNAVAILABLE')
     .map((r) => `<@${r.submission.player.discordUserId}>`);
 
-  const hasResponses = availablePlayers.length > 0 || outPlayers.length > 0;
-
   const serverCodeValue =
     game.gameServer || game.gameCode
       ? `Server: **${game.gameServer ?? 'Not set'}** ┃ Code: **${game.gameCode ?? 'Not set'}**`
       : 'Not set';
 
-  const embed = brandedEmbed(0xCC0000)
+  const assignedCount = game.lineup?.length ?? 0;
+  const confirmedCount = game.lineup?.filter((l) => l.confirmed).length ?? 0;
+  const lineupBadge =
+    confirmedCount > 0 && confirmedCount === assignedCount
+      ? `✅ **Lineup Confirmed (${confirmedCount}/6)**`
+      : assignedCount > 0
+        ? `▫️ **Lineup In Progress (${assignedCount}/6)**`
+        : `⚪ **Lineup Open (0/6)**`;
+
+  const opponentColor = getTeamColor(opponentFullName);
+
+  const embed = brandedEmbed(opponentColor)
     .setAuthor(null)
-    .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${homeAwayTag} ${opponentShortName}`)
+    .setTitle(`🏒 GAME ${gameNumber ?? 1} • ${homeAwayTag} ${opponentFullName.toUpperCase()}`)
     .setDescription(
-      `**${matchupLine}**\n\n` +
-      `📅 ${dayName}, <t:${timeUnix}:D>\n` +
-      `🕖 <t:${timeUnix}:t>`
+      `🏟️ **${matchupLine}**\n` +
+      `📅 **${dayName}, <t:${timeUnix}:D>** • 🕖 **<t:${timeUnix}:t>** (<t:${timeUnix}:R>)\n` +
+      `${lineupBadge}`
     )
     .addFields(
       {
-        name: 'FORWARDS',
-        value: forwardsText,
+        name: '⚔️ LINEUP',
+        value:
+          `\`LW\` ${formatSlot('LW')} ┃ \`C\` ${formatSlot('C')} ┃ \`RW\` ${formatSlot('RW')}\n` +
+          `\`LD\` ${formatSlot('LD')} ┃ \`RD\` ${formatSlot('RD')} ┃ \`G\` ${formatSlot('G')}`,
+        inline: false,
+      },
+      {
+        name: '🎮 SERVER / ROOM CODE',
+        value: serverCodeValue,
         inline: true,
       },
       {
-        name: 'DEFENSE & GOALIE',
-        value: defenseText,
-        inline: true,
+        name: `👥 AVAILABILITY (${availablePlayers.length} in • ${outPlayers.length} out)`,
+        value:
+          availablePlayers.length || outPlayers.length
+            ? (availablePlayers.length ? `🟢 **Available:** ${availablePlayers.join(', ').slice(0, 450)}\n` : '') +
+              (outPlayers.length ? `🔴 **Out:** ${outPlayers.join(', ').slice(0, 450)}` : '')
+            : '*No responses recorded yet*',
+        inline: false,
       },
-    );
-
-  if (!hasResponses) {
-    embed.addFields({
-      name: 'AVAILABILITY',
-      value: '🟢 Available • 0\n🔴 Out • 0\n*No responses yet*',
-      inline: false,
-    });
-  } else {
-    embed.addFields(
-      {
-        name: `🟢 Available • ${availablePlayers.length}`,
-        value: availablePlayers.length ? availablePlayers.join('\n').slice(0, 1024) : '*None*',
-        inline: true,
-      },
-      {
-        name: `🔴 Out • ${outPlayers.length}`,
-        value: outPlayers.length ? outPlayers.join('\n').slice(0, 1024) : '*None*',
-        inline: true,
-      },
-    );
-  }
-
-  embed
-    .addFields({
-      name: 'GAME CODE',
-      value: serverCodeValue,
-      inline: false,
-    })
+    )
     .setFooter({
-      text: `S55 • Boston University • Game ${gameNumber ?? 1} of 9 • LG Assistant`,
+      text: `S55 • Boston University • Game ${gameNumber ?? 1} • LG Assistant`,
     });
 
   const playerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-avail', game.id, 'available'))
-      .setLabel('Available')
+      .setLabel('🟢 Available')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(customId('game-avail', game.id, 'unavailable'))
-      .setLabel('Out')
+      .setLabel('🔴 Out')
       .setStyle(ButtonStyle.Danger),
-  );
-
-  const secondaryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-day-avail', game.id, 'available'))
       .setLabel(`All ${dayName}`)
@@ -410,14 +388,21 @@ export function renderIndividualGamePost(
       .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
       .setLabel(`No ${dayName}`)
       .setStyle(ButtonStyle.Secondary),
+  );
+
+  const secondaryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'code'))
-      .setLabel('Code')
+      .setLabel('🎮 Set Code')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-      .setLabel('Lineup')
+      .setLabel('📋 Set Lineup')
       .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(customId('lineup-action', game.id, 'confirm'))
+      .setLabel('✅ Confirm Lineup')
+      .setStyle(ButtonStyle.Success),
   );
 
   return {

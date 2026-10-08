@@ -9,6 +9,8 @@ import { AppError } from '../utils/errors.js';
 import { DEFAULT_AVAILABILITY_CHANNEL_ID } from '../config/constants.js';
 import { requireManagement } from './authorization.js';
 import { getTeamMembersWithRole } from './management.js';
+import { localWeekday } from '../domain/schedule-time.js';
+const POSITIONS = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
 export async function syncAvailabilityPost(guildId, week, context, client) {
     const config = await context.config.ensure(guildId);
     let channelId = config.teamAvailabilityChannelId;
@@ -343,9 +345,48 @@ export async function handleGame(interaction, context) {
     const player = management
         ? null
         : await context.players.byDiscordId(interaction.guildId, interaction.user.id, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL());
+    const scheduleData = await context.schedule.getPlayerWeeklySchedule(interaction.guildId, interaction.user.id);
+    if (scheduleData && scheduleData.totalGames > 0) {
+        const linesByDay = {
+            SUNDAY: [],
+            MONDAY: [],
+            TUESDAY: [],
+            OTHER: [],
+        };
+        for (const item of scheduleData.assignedGames) {
+            const timeUnix = Math.floor(item.game.scheduledAtUtc.getTime() / 1000);
+            const opponent = item.game.opponentNameSnapshot ?? 'TBD';
+            const matchup = item.game.homeAway === 'AWAY' ? `@ ${opponent}` : `vs ${opponent}`;
+            const serverCode = item.game.gameServer || item.game.gameCode
+                ? ` • \`${item.game.gameServer ?? 'TBD'}\` / \`${item.game.gameCode ?? 'TBD'}\``
+                : '';
+            linesByDay[item.day].push(`• <t:${timeUnix}:t> **${matchup}** (\`${item.position}\`)${serverCode}`);
+        }
+        const embed = brandedEmbed()
+            .setTitle(`📅 YOUR ${scheduleData.week.label.toUpperCase()} SCHEDULE (${scheduleData.totalGames} Games)`)
+            .setDescription(`Personalized lineup and game info for <@${interaction.user.id}>:\n`)
+            .addFields({
+            name: '🏒 SUNDAY',
+            value: linesByDay.SUNDAY.length ? linesByDay.SUNDAY.join('\n') : '• *OFF*',
+            inline: false,
+        }, {
+            name: '🏒 MONDAY',
+            value: linesByDay.MONDAY.length ? linesByDay.MONDAY.join('\n') : '• *OFF*',
+            inline: false,
+        }, {
+            name: '🏒 TUESDAY',
+            value: linesByDay.TUESDAY.length ? linesByDay.TUESDAY.join('\n') : '• *OFF*',
+            inline: false,
+        })
+            .setFooter({ text: `Total: ${scheduleData.totalGames} games assigned` });
+        await interaction.editReply({ embeds: [embed] });
+        return;
+    }
     const game = await context.schedule.nearestGame(interaction.guildId, player?.id);
     if (!game)
-        throw new AppError('NOT_FOUND', management ? 'No upcoming game was found.' : 'You do not have an upcoming confirmed game.');
+        throw new AppError('NOT_FOUND', management
+            ? 'No upcoming game was found.'
+            : 'You are not currently scheduled for any games in the active week. Use `/availability` to check or submit availability!');
     await interaction.editReply(renderGame(game, management, player?.id));
 }
 export function parseScheduleLine(line, fallbackDate) {
@@ -431,6 +472,87 @@ export async function handleLineupCommand(interaction, context) {
         throw new AppError('NOT_FOUND', 'No games are scheduled for this week yet. Add games first!');
     }
     const activeGames = currentWeek.games.filter((g) => g.status !== 'CANCELLED');
+    const night = interaction.options.getString('night');
+    if (night) {
+        const positions = [
+            ['LW', interaction.options.getUser('lw')?.id ?? null],
+            ['C', interaction.options.getUser('c')?.id ?? null],
+            ['RW', interaction.options.getUser('rw')?.id ?? null],
+            ['LD', interaction.options.getUser('ld')?.id ?? null],
+            ['RD', interaction.options.getUser('rd')?.id ?? null],
+            ['G', interaction.options.getUser('g')?.id ?? null],
+        ];
+        const lineup = {};
+        for (const [pos, userId] of positions) {
+            if (userId) {
+                const member = await interaction.guild.members.fetch(userId).catch(() => null);
+                const player = await context.players.byDiscordId(interaction.guildId, userId, member?.displayName ?? member?.user.username ?? 'Player', member?.user.displayAvatarURL());
+                lineup[pos] = player.id;
+            }
+        }
+        if (!Object.keys(lineup).length) {
+            const tz = (await context.config.get(interaction.guildId))?.timezone || 'America/New_York';
+            const dayGames = currentWeek.games
+                .filter((g) => g.status !== 'CANCELLED' && localWeekday(g.scheduledAtUtc, tz) === night)
+                .sort((a, b) => a.scheduledAtUtc.getTime() - b.scheduledAtUtc.getTime());
+            if (!dayGames.length) {
+                throw new AppError('NOT_FOUND', `No scheduled games found on ${night} for this week.`);
+            }
+            const posMap = new Map();
+            for (const pos of POSITIONS) {
+                const firstAssigned = dayGames[0]?.lineup?.find((l) => l.position === pos);
+                posMap.set(pos, firstAssigned ? `<@${firstAssigned.player.discordUserId}>` : '*Open*');
+            }
+            const timesText = dayGames
+                .map((g, idx) => `Game ${idx + 1}: <t:${Math.floor(g.scheduledAtUtc.getTime() / 1000)}:t>`)
+                .join(' • ');
+            const embed = brandedEmbed()
+                .setTitle(`⚡ ${night} LINEUP BUILDER`)
+                .setDescription(`Assigning this line will fill **all ${dayGames.length} ${night} games** (${timesText}).\n\n` +
+                `**Current Line:**\n` +
+                `\`LW\` ${posMap.get('LW')} ┃ \`C\` ${posMap.get('C')} ┃ \`RW\` ${posMap.get('RW')}\n` +
+                `\`LD\` ${posMap.get('LD')} ┃ \`RD\` ${posMap.get('RD')} ┃ \`G\` ${posMap.get('G')}\n\n` +
+                `*Pick a position below to set a player across all ${night} games:*`);
+            const selectRow = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+                .setCustomId(customId('night-pos-select', currentWeek.id, night))
+                .setPlaceholder(`Choose a position to assign for all ${night} games...`)
+                .addOptions(POSITIONS.map((p) => ({ label: `Set ${p}`, value: p }))));
+            const actionRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+                .setCustomId(customId('lineup-action', currentWeek.id, 'night-prompt'))
+                .setLabel('Switch Night')
+                .setStyle(ButtonStyle.Secondary));
+            await interaction.editReply({
+                embeds: [embed],
+                components: [selectRow, actionRow],
+            });
+            return;
+        }
+        const assigned = await context.schedule.assignNightLineup({
+            guildId: interaction.guildId,
+            weekId: currentWeek.id,
+            day: night,
+            lineup,
+            actorDiscordId: interaction.user.id,
+        });
+        const updatedWeek = await context.schedule.getWeek(currentWeek.id);
+        if (updatedWeek) {
+            await syncAvailabilityPost(interaction.guildId, updatedWeek, context, interaction.client);
+            const tz = (await context.config.get(interaction.guildId))?.timezone || 'America/New_York';
+            const dayGames = updatedWeek.games.filter((g) => g.status !== 'CANCELLED' && localWeekday(g.scheduledAtUtc, tz) === night);
+            for (const g of dayGames) {
+                await syncSingleGamePost(interaction.guildId, g.id, context, interaction.client);
+            }
+        }
+        const lineSummary = Object.entries(lineup)
+            .map(([pos]) => `\`${pos}\` <@${positions.find((x) => x[0] === pos)?.[1]}>`)
+            .join(' • ');
+        await interaction.editReply({
+            embeds: [
+                renderSuccess(`${night} Line Assigned!`, `⚡ Successfully assigned line to all **${assigned.gamesUpdated} ${night} games**:\n\n${lineSummary}\n\nAll game cards and #team-availability have been updated!`),
+            ],
+        });
+        return;
+    }
     const gameArg = interaction.options.getString('game')?.trim();
     let targetGameId;
     if (gameArg) {

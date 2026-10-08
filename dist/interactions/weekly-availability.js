@@ -1,30 +1,64 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, } from 'discord.js';
+import { ActionRowBuilder, PermissionFlagsBits, StringSelectMenuBuilder, } from 'discord.js';
 import { DateTime } from 'luxon';
 import { requireManagement } from '../commands/authorization.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { gameOpponentLabel } from '../renderers/schedule.renderer.js';
-import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
+import { DEFAULT_MANAGEMENT_ROLE_ID, DEFAULT_ROSTER_ROLE_ID, DEFAULT_TC_ROLE_ID, DEFAULT_TEAM_ROLE_ID, } from '../config/constants.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { syncAvailabilityPost } from '../commands/schedule.js';
-async function checkTeamRole(interaction, configRoleId) {
+export function resolveMemberTeamStatus(member, config) {
+    if (!member)
+        return 'ROSTER';
+    const rosterRoleId = config?.rosterRoleId ?? DEFAULT_ROSTER_ROLE_ID;
+    const tcRoleId = config?.tcRoleId ?? DEFAULT_TC_ROLE_ID;
+    if ('roles' in member && member.roles) {
+        if ('cache' in member.roles && member.roles.cache) {
+            if (member.roles.cache.has(rosterRoleId))
+                return 'ROSTER';
+            if (member.roles.cache.has(tcRoleId))
+                return 'TC';
+            const hasTc = member.roles.cache.some((r) => /\btc\b/i.test(r.name) || r.name.toLowerCase().includes('training camp'));
+            if (hasTc)
+                return 'TC';
+            return 'ROSTER';
+        }
+        else if (Array.isArray(member.roles)) {
+            if (member.roles.includes(rosterRoleId))
+                return 'ROSTER';
+            if (member.roles.includes(tcRoleId))
+                return 'TC';
+            return 'ROSTER';
+        }
+    }
+    return 'ROSTER';
+}
+export async function checkTeamRole(interaction, configRosterRoleId, configTcRoleId) {
     if (!interaction.guild)
         return false;
-    const role = interaction.guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
-        interaction.guild.roles.cache.get(configRoleId ?? '') ??
-        interaction.guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
-    if (!role)
-        return true; // If no team role configured or found, allow server members
     const member = interaction.member && 'roles' in interaction.member
         ? interaction.member
         : await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
     if (!member)
         return false;
-    return 'cache' in member.roles
-        ? member.roles.cache.has(role.id)
-        : Array.isArray(member.roles)
-            ? member.roles.includes(role.id)
-            : false;
+    // Management and admins can always submit availability
+    if (member.permissions?.has?.(PermissionFlagsBits.Administrator))
+        return true;
+    if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild))
+        return true;
+    const rosterRoleId = configRosterRoleId ?? DEFAULT_ROSTER_ROLE_ID;
+    const tcRoleId = configTcRoleId ?? DEFAULT_TC_ROLE_ID;
+    const allowedRoleIds = [rosterRoleId, tcRoleId, DEFAULT_TEAM_ROLE_ID, DEFAULT_MANAGEMENT_ROLE_ID];
+    if ('cache' in member.roles && member.roles.cache) {
+        if (allowedRoleIds.some((id) => member.roles.cache.has(id)))
+            return true;
+        return member.roles.cache.some((r) => /\b(owner|gm|agm|coach|management|manager|admin|roster|bu|tc)\b/i.test(r.name));
+    }
+    if (Array.isArray(member.roles)) {
+        if (allowedRoleIds.some((id) => member.roles.includes(id)))
+            return true;
+    }
+    return false;
 }
 export async function handleWeeklyAvailabilityButton(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
@@ -32,17 +66,20 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
     const week = await context.weeklyAvailability.getWeek(parsed.entityId);
     if (!week)
         throw new AppError('STALE_INTERACTION', 'This availability week no longer exists.');
-    const hasRole = await checkTeamRole(interaction, week.guildConfig?.rosterRoleId);
+    const hasRole = await checkTeamRole(interaction, week.guildConfig?.rosterRoleId, week.guildConfig?.tcRoleId);
     if (!hasRole) {
-        throw new AppError('NOT_ALLOWED', 'Only players with the team role (@S55 BU) can submit availability.');
+        const roleId = week.guildConfig?.rosterRoleId ?? DEFAULT_ROSTER_ROLE_ID;
+        throw new AppError('NOT_ALLOWED', `Only players with the team role (<@&${roleId}>) can submit availability.`);
     }
-    // Ensure player profile exists and is on ROSTER
+    // Ensure player profile exists and status matches Discord role (ROSTER vs TC)
     const player = await context.players.byDiscordId(interaction.guildId, interaction.user.id, interaction.user.displayName ?? interaction.user.username, interaction.user.displayAvatarURL());
-    if (player.teamStatus !== 'ROSTER') {
+    const resolvedStatus = resolveMemberTeamStatus(interaction.member, week.guildConfig);
+    if (player.teamStatus !== resolvedStatus || !player.registered) {
         await context.prisma.player.update({
             where: { id: player.id },
-            data: { teamStatus: 'ROSTER', registered: true },
+            data: { teamStatus: resolvedStatus, registered: true },
         });
+        player.teamStatus = resolvedStatus;
     }
     // 1. Available for ALL (1 Click)
     if (parsed.value === 'avail-all') {
@@ -87,7 +124,58 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
         });
         return;
     }
-    // 3. Pick specific games (Custom checkboxes)
+    // 3. My Schedule (Privately view player's weekly schedule)
+    if (parsed.value === 'my-schedule') {
+        await interaction.deferReply({ ephemeral: true });
+        const scheduleData = await context.schedule.getPlayerWeeklySchedule(interaction.guildId, interaction.user.id, week.id);
+        if (!scheduleData || !scheduleData.totalGames) {
+            await interaction.editReply({
+                embeds: [
+                    brandedEmbed()
+                        .setTitle(`📅 YOUR ${week.label.toUpperCase()} SCHEDULE`)
+                        .setDescription(`You are not currently scheduled for any games in **${week.label}**.\n\n` +
+                        `Submit your availability so management can assign your line!`),
+                ],
+            });
+            return;
+        }
+        const linesByDay = {
+            SUNDAY: [],
+            MONDAY: [],
+            TUESDAY: [],
+            OTHER: [],
+        };
+        for (const item of scheduleData.assignedGames) {
+            const timeUnix = Math.floor(item.game.scheduledAtUtc.getTime() / 1000);
+            const opponent = item.game.opponentNameSnapshot ?? 'TBD';
+            const matchup = item.game.homeAway === 'AWAY' ? `@ ${opponent}` : `vs ${opponent}`;
+            const serverCode = item.game.gameServer || item.game.gameCode
+                ? ` • \`${item.game.gameServer ?? 'TBD'}\` / \`${item.game.gameCode ?? 'TBD'}\``
+                : '';
+            const dayList = linesByDay[item.day] ?? linesByDay.OTHER;
+            dayList.push(`• <t:${timeUnix}:t> **${matchup}** (\`${item.position}\`)${serverCode}`);
+        }
+        const embed = brandedEmbed()
+            .setTitle(`📅 YOUR ${week.label.toUpperCase()} SCHEDULE (${scheduleData.totalGames} Games)`)
+            .setDescription(`Personalized lineup and game info for <@${interaction.user.id}>:\n`)
+            .addFields({
+            name: '🏒 SUNDAY',
+            value: linesByDay.SUNDAY.length ? linesByDay.SUNDAY.join('\n') : '• *OFF*',
+            inline: false,
+        }, {
+            name: '🏒 MONDAY',
+            value: linesByDay.MONDAY.length ? linesByDay.MONDAY.join('\n') : '• *OFF*',
+            inline: false,
+        }, {
+            name: '🏒 TUESDAY',
+            value: linesByDay.TUESDAY.length ? linesByDay.TUESDAY.join('\n') : '• *OFF*',
+            inline: false,
+        })
+            .setFooter({ text: `Total: ${scheduleData.totalGames} games assigned` });
+        await interaction.editReply({ embeds: [embed] });
+        return;
+    }
+    // 4. Pick specific games (Custom checkboxes)
     if (parsed.value === 'pick' || parsed.value === 'submit' || parsed.value === 'edit') {
         await interaction.deferReply({ ephemeral: true });
         const existing = week.submissions.find((s) => s.playerId === player.id);

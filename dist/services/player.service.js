@@ -39,6 +39,7 @@ export async function getOrCreatePlayer(prisma, guildId, user) {
                 signupPositions: [],
                 positionGroup: 'FORWARD',
                 registered: true,
+                teamStatus: 'ROSTER',
             },
         });
     }

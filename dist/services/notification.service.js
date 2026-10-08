@@ -90,6 +90,25 @@ export class NotificationService {
             ],
         }, 'regular-season lineup confirmation');
     }
+    async weeklyScheduleConfirmed(userId, weekLabel, games) {
+        const list = games
+            .sort((a, b) => a.scheduledAtUtc.getTime() - b.scheduledAtUtc.getTime())
+            .map((g) => {
+            const time = discordTimestamp(g.scheduledAtUtc, 'F');
+            const match = `${g.homeAway === 'AWAY' ? '@' : 'vs'} ${g.opponentNameSnapshot ?? 'TBD'}`;
+            const server = g.gameServer ? ` • Server: ${g.gameServer}` : '';
+            const code = g.gameCode ? ` • Code: ${g.gameCode}` : '';
+            return `• **${time}** ${match} (\`${g.position}\`)${server}${code}`;
+        })
+            .join('\n');
+        return this.send(userId, {
+            embeds: [
+                brandedEmbed()
+                    .setTitle(`🏒 YOUR ${weekLabel.toUpperCase()} SCHEDULE IS LOCKED!`)
+                    .setDescription(`You are confirmed for **${games.length} game(s)** this week:\n\n${list}\n\nGood luck! Use \`/game\` anytime for live updates.`),
+            ],
+        }, 'weekly schedule locked notification');
+    }
     async gameReminder(userId, game, position) {
         return this.send(userId, {
             embeds: [

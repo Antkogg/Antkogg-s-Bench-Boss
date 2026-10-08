@@ -14,7 +14,7 @@ import { waitlistPrompt, handleButton } from '../interactions/buttons.js';
 import { handleManagementModal, handleRegistrationModal } from '../interactions/modals.js';
 import { handleSelectMenu } from '../interactions/select-menus.js';
 import { handleAvailabilityReminderButton, handleWeeklyAvailabilityButton, handleWeeklyAvailabilitySelect, } from '../interactions/weekly-availability.js';
-import { handleGameAvailButton, handleGameDayAvailButton, handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handlePlayerGameButton, handleQuickGameModal, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
+import { handleGameAvailButton, handleGameDayAvailButton, handleGameButton, handleGameCodeModal, handleGameStatusSelect, handleLineupButton, handleLineupPlayerSelect, handleLineupPositionSelect, handleLineupUserSelect, handleNightPlayerSelect, handleNightPosSelect, handlePlayerGameButton, handleQuickGameModal, handleWeekButton, handleWeekDayModal, handleWeekGameSelect, } from '../interactions/schedule.js';
 import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
 import { AppError, publicErrorMessage } from '../utils/errors.js';
@@ -130,9 +130,13 @@ export async function routeInteraction(interaction, context) {
                 (parsed.action === 'lineup-action' && parsed.value === 'game-chosen'))
                 await handleWeekGameSelect(interaction, context);
             else if (parsed.action === 'lineup-position-select')
-                await handleLineupPositionSelect(interaction, context);
+                await handleLineupPositionSelect(interaction, context, parsed);
             else if (parsed.action === 'lineup-player-select')
                 await handleLineupPlayerSelect(interaction, context, parsed);
+            else if (parsed.action === 'night-pos-select')
+                await handleNightPosSelect(interaction, context, parsed);
+            else if (parsed.action === 'night-player-select')
+                await handleNightPlayerSelect(interaction, context, parsed);
             else if (parsed.action === 'game-status-select')
                 await handleGameStatusSelect(interaction, context, parsed);
             else

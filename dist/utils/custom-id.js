@@ -47,6 +47,8 @@ const actionSchema = z.enum([
     'post-week-select',
     'game-avail',
     'game-day-avail',
+    'night-pos-select',
+    'night-player-select',
 ]);
 export function customId(action, entityId, value) {
     const id = ['bb', action, entityId, value].filter(Boolean).join(':');

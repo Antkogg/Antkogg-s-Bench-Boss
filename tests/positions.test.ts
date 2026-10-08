@@ -5,6 +5,7 @@ import type {
   SignupPosition,
 } from '../src/generated/prisma/enums.js';
 import { eligiblePositions, groupForSignupPositions, isEligible } from '../src/domain/positions.js';
+import { renderRosterPositionsPanel } from '../src/commands/management.js';
 
 describe('position eligibility', () => {
   const cases: Array<[SignupPosition, PositionGroup, readonly ScoutingPosition[]]> = [
@@ -34,9 +35,7 @@ describe('position eligibility', () => {
 });
 
 describe('renderRosterPositionsPanel', () => {
-  it('splits position buttons across multiple rows so no action row exceeds 5 components', async () => {
-    const { renderRosterPositionsPanel } = await import('../src/commands/management.js');
-
+  it('splits position buttons across multiple rows so no action row exceeds 5 components', () => {
     const fakeMember = {
       id: '1234567890',
       displayName: 'TestPlayer',

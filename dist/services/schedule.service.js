@@ -1,6 +1,5 @@
 import { DateTime } from 'luxon';
 import { localScheduleToUtc, localWeekday, nextSundayDate, normalizeLocalTime, offsetDate, parseFlexibleDate, validateIanaTimezone, } from '../domain/schedule-time.js';
-import { isEligible } from '../domain/positions.js';
 import { AppError } from '../utils/errors.js';
 import { cleanDisplayValue, normalizeIdentity, parseFlexibleTime } from '../utils/normalize.js';
 const DAY_OFFSETS = {
@@ -407,20 +406,16 @@ export class ScheduleService {
         const eligiblePlayers = await this.prisma.player.findMany({
             where: {
                 guildConfigId: game.week.guildConfigId,
-                registered: true,
-                teamStatus: { in: ['ROSTER', 'TC'] },
             },
-            orderBy: [{ teamStatus: 'asc' }, { positionGroup: 'asc' }, { eaTag: 'asc' }],
+            orderBy: [{ eaTag: 'asc' }],
         });
         return { ...game, eligiblePlayers };
     }
-    async lineupCandidates(guildId, gameId, position) {
+    async lineupCandidates(guildId, gameId, _position) {
         const game = await this.requireGuildGame(guildId, gameId);
         const players = await this.prisma.player.findMany({
             where: {
                 guildConfigId: game.week.guildConfigId,
-                registered: true,
-                teamStatus: { in: ['ROSTER', 'TC'] },
             },
             include: {
                 weeklyAvailability: {
@@ -429,21 +424,27 @@ export class ScheduleService {
                     take: 1,
                 },
             },
-            orderBy: [{ teamStatus: 'asc' }, { eaTag: 'asc' }],
+            orderBy: [{ eaTag: 'asc' }],
         });
         return players
-            .filter((player) => isEligible(player.positionGroup, position))
             .map((player) => ({
             player,
             availability: player.weeklyAvailability[0]?.responses[0]?.status ?? 'NO_RESPONSE',
         }))
-            .sort((left, right) => left.availability === right.availability
-            ? left.player.eaTag.localeCompare(right.player.eaTag)
-            : left.availability === 'AVAILABLE'
-                ? -1
-                : right.availability === 'AVAILABLE'
-                    ? 1
-                    : 0);
+            .sort((left, right) => {
+            if (left.availability === right.availability) {
+                return left.player.eaTag.localeCompare(right.player.eaTag);
+            }
+            if (left.availability === 'AVAILABLE')
+                return -1;
+            if (right.availability === 'AVAILABLE')
+                return 1;
+            if (left.availability === 'NO_RESPONSE')
+                return -1;
+            if (right.availability === 'NO_RESPONSE')
+                return 1;
+            return 0;
+        });
     }
     async assignLineupPosition(input) {
         const game = await this.requireGuildGame(input.guildId, input.gameId);
@@ -464,8 +465,6 @@ export class ScheduleService {
         });
         if (!player)
             throw new AppError('NOT_FOUND', 'That roster/TC player was not found.');
-        if (!isEligible(player.positionGroup, input.position))
-            throw new AppError('INELIGIBLE_POSITION', `${player.eaTag} is not eligible for ${input.position}.`);
         const availability = player.weeklyAvailability[0]?.responses[0]?.status ?? 'NO_RESPONSE';
         const availabilityOverride = availability !== 'AVAILABLE';
         return this.prisma.$transaction(async (tx) => {
@@ -660,6 +659,284 @@ export class ScheduleService {
         if (!game)
             throw new AppError('NOT_FOUND', 'That game does not belong to this server.');
         return game;
+    }
+    async assignNightLineup(input) {
+        const config = await this.ensureConfig(input.guildId);
+        const week = input.weekId
+            ? await this.getWeek(input.weekId)
+            : await this.currentWeek(input.guildId);
+        if (!week)
+            throw new AppError('NOT_FOUND', 'No active week found.');
+        const tz = config.timezone || 'America/New_York';
+        const dayGames = week.games
+            .filter((g) => g.status !== 'CANCELLED' && localWeekday(g.scheduledAtUtc, tz) === input.day)
+            .sort((a, b) => a.scheduledAtUtc.getTime() - b.scheduledAtUtc.getTime());
+        if (!dayGames.length) {
+            throw new AppError('NOT_FOUND', `No scheduled games found on ${input.day} for ${week.label}. Add games first.`);
+        }
+        const assignedEntries = Object.entries(input.lineup).filter((entry) => Boolean(entry[1]));
+        if (!assignedEntries.length) {
+            throw new AppError('INVALID_INPUT', 'Select at least one player for the line.');
+        }
+        return this.prisma.$transaction(async (tx) => {
+            for (const game of dayGames) {
+                for (const [position, playerId] of assignedEntries) {
+                    await tx.gameLineupAssignment.deleteMany({
+                        where: { gameId: game.id, position },
+                    });
+                    await tx.gameLineupAssignment.deleteMany({
+                        where: { gameId: game.id, playerId },
+                    });
+                    const playerAvail = await tx.playerGameAvailability.findFirst({
+                        where: {
+                            gameId: game.id,
+                            submission: { playerId },
+                        },
+                    });
+                    const availabilityOverride = playerAvail?.status === 'UNAVAILABLE';
+                    await tx.gameLineupAssignment.create({
+                        data: {
+                            gameId: game.id,
+                            playerId,
+                            position,
+                            availabilityOverride,
+                            assignedByDiscordId: input.actorDiscordId,
+                        },
+                    });
+                }
+            }
+            await this.audit(tx, config.id, input.actorDiscordId, 'NIGHT_LINEUP_ASSIGNED', 'SeasonWeek', week.id, { day: input.day, gameCount: dayGames.length, lineup: input.lineup });
+            return {
+                weekId: week.id,
+                day: input.day,
+                gamesUpdated: dayGames.length,
+            };
+        });
+    }
+    async getWeekSchedulingSummary(guildId, weekId) {
+        const config = await this.ensureConfig(guildId);
+        const week = weekId
+            ? await this.getWeek(weekId)
+            : await this.currentWeek(guildId);
+        if (!week)
+            return null;
+        const tz = config.timezone || 'America/New_York';
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        const playerGameCounts = new Map();
+        const conflicts = [];
+        let openSpots = 0;
+        for (const game of activeGames) {
+            const filledPositions = new Set();
+            for (const assignment of game.lineup ?? []) {
+                filledPositions.add(assignment.position);
+                const current = playerGameCounts.get(assignment.playerId) ?? {
+                    player: assignment.player,
+                    count: 0,
+                    positions: new Set(),
+                };
+                current.count += 1;
+                current.positions.add(assignment.position);
+                playerGameCounts.set(assignment.playerId, current);
+                const response = game.responses?.find((r) => r.submission.player.id === assignment.playerId);
+                if (response?.status === 'UNAVAILABLE') {
+                    conflicts.push({
+                        game,
+                        player: assignment.player,
+                        position: assignment.position,
+                    });
+                }
+            }
+            openSpots += 6 - filledPositions.size;
+        }
+        const gamesByNight = {
+            SUNDAY: [],
+            MONDAY: [],
+            TUESDAY: [],
+            OTHER: [],
+        };
+        for (const g of activeGames) {
+            const day = localWeekday(g.scheduledAtUtc, tz);
+            gamesByNight[day].push(g);
+        }
+        const analyzeNightLine = (games) => {
+            const positions = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
+            let isUnified = games.length > 0;
+            const lineup = {};
+            let openCount = 0;
+            if (!games.length)
+                return { games, isUnified: false, lineup, openCount: 0 };
+            for (const pos of positions) {
+                const firstAssignment = games[0]?.lineup?.find((l) => l.position === pos);
+                if (!firstAssignment) {
+                    openCount++;
+                }
+                else {
+                    lineup[pos] = firstAssignment.player;
+                }
+                for (let i = 1; i < games.length; i++) {
+                    const a = games[i]?.lineup?.find((l) => l.position === pos);
+                    if (!a)
+                        openCount++;
+                    if (a?.playerId !== firstAssignment?.playerId) {
+                        isUnified = false;
+                    }
+                }
+            }
+            return { games, isUnified, lineup, openCount };
+        };
+        const nightLines = {
+            SUNDAY: analyzeNightLine(gamesByNight.SUNDAY),
+            MONDAY: analyzeNightLine(gamesByNight.MONDAY),
+            TUESDAY: analyzeNightLine(gamesByNight.TUESDAY),
+        };
+        return {
+            week,
+            gamesByNight,
+            nightLines,
+            playerGameCounts: Array.from(playerGameCounts.values()),
+            conflicts,
+            openSpots,
+        };
+    }
+    async getPlayerWeeklySchedule(guildId, discordUserId, weekId) {
+        const config = await this.ensureConfig(guildId);
+        const week = weekId
+            ? await this.getWeek(weekId)
+            : await this.currentWeek(guildId);
+        if (!week)
+            return null;
+        const tz = config.timezone || 'America/New_York';
+        const player = await this.prisma.player.findFirst({
+            where: {
+                guildConfigId: config.id,
+                discordUserId,
+            },
+        });
+        if (!player)
+            return null;
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        const assignedGames = [];
+        for (const g of activeGames) {
+            const assignment = g.lineup?.find((l) => l.playerId === player.id);
+            if (assignment) {
+                assignedGames.push({
+                    game: g,
+                    position: assignment.position,
+                    day: localWeekday(g.scheduledAtUtc, tz),
+                });
+            }
+        }
+        return {
+            player,
+            week,
+            assignedGames,
+            totalGames: assignedGames.length,
+        };
+    }
+    async findReplacements(guildId, gameId, position) {
+        const game = await this.prisma.weeklyGame.findFirst({
+            where: { id: gameId, week: { guildConfig: { guildId } } },
+            include: {
+                week: true,
+                lineup: { include: { player: true } },
+            },
+        });
+        if (!game)
+            throw new AppError('NOT_FOUND', 'Game not found.');
+        const week = await this.getWeek(game.weekId);
+        if (!week)
+            throw new AppError('NOT_FOUND', 'Week not found.');
+        const allPlayers = await this.prisma.player.findMany({
+            where: {
+                guildConfigId: game.week.guildConfigId,
+                teamStatus: { in: ['ROSTER', 'TC'] },
+            },
+            include: {
+                weeklyAvailability: {
+                    where: { weekId: game.weekId },
+                    include: { responses: { where: { gameId } } },
+                    take: 1,
+                },
+            },
+            orderBy: [{ teamStatus: 'asc' }, { eaTag: 'asc' }],
+        });
+        const gameCounts = new Map();
+        for (const g of week.games.filter((x) => x.status !== 'CANCELLED')) {
+            for (const l of g.lineup ?? []) {
+                gameCounts.set(l.playerId, (gameCounts.get(l.playerId) ?? 0) + 1);
+            }
+        }
+        const currentInGame = new Set(game.lineup.filter((l) => l.position !== position).map((l) => l.playerId));
+        return allPlayers
+            .filter((p) => !currentInGame.has(p.id))
+            .map((player) => {
+            const avail = player.weeklyAvailability[0]?.responses[0]?.status ?? 'NO_RESPONSE';
+            const assignedThisWeek = gameCounts.get(player.id) ?? 0;
+            return {
+                player,
+                availability: avail,
+                isTc: player.teamStatus === 'TC',
+                weeklyGamesAssigned: assignedThisWeek,
+                ecuCount: player.teamStatus === 'TC' ? assignedThisWeek : 0,
+            };
+        })
+            .sort((a, b) => {
+            if (a.availability === 'AVAILABLE' && b.availability !== 'AVAILABLE')
+                return -1;
+            if (b.availability === 'AVAILABLE' && a.availability !== 'AVAILABLE')
+                return 1;
+            if (!a.isTc && b.isTc)
+                return -1;
+            if (a.isTc && !b.isTc)
+                return 1;
+            return a.weeklyGamesAssigned - b.weeklyGamesAssigned;
+        });
+    }
+    async lockWeeklyLines(guildId, weekId, actorDiscordId) {
+        const week = await this.getWeek(weekId);
+        if (!week)
+            throw new AppError('NOT_FOUND', 'Week not found.');
+        if (week.guildConfig?.guildId && week.guildConfig.guildId !== guildId) {
+            throw new AppError('NOT_ALLOWED', 'Week does not belong to this server.');
+        }
+        const config = await this.ensureConfig(guildId);
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        let openSpots = 0;
+        const playerGamesMap = new Map();
+        for (const g of activeGames) {
+            const filled = new Set();
+            for (const l of g.lineup ?? []) {
+                filled.add(l.position);
+                const list = playerGamesMap.get(l.player.discordUserId) ?? [];
+                list.push({ game: g, position: l.position });
+                playerGamesMap.set(l.player.discordUserId, list);
+            }
+            openSpots += 6 - filled.size;
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await tx.gameLineupAssignment.updateMany({
+                where: {
+                    game: { weekId: week.id, status: { not: 'CANCELLED' } },
+                },
+                data: {
+                    confirmed: true,
+                    confirmedAt: new Date(),
+                },
+            });
+            await tx.seasonWeek.update({
+                where: { id: week.id },
+                data: { status: 'LOCKED' },
+            });
+            await this.audit(tx, config.id, actorDiscordId, 'WEEK_LINES_LOCKED', 'SeasonWeek', week.id, { openSpots, totalPlayersScheduled: playerGamesMap.size });
+        });
+        return {
+            week,
+            openSpots,
+            deliveries: Array.from(playerGamesMap.entries()).map(([discordUserId, games]) => ({
+                discordUserId,
+                games,
+            })),
+        };
     }
     async resolveOpponent(tx, guildConfigId, seasonId, raw) {
         const value = cleanDisplayValue(raw, 100);
