@@ -243,10 +243,12 @@ export function renderIndividualGamePost(game, gameNumber) {
         value: serverCodeValue,
         inline: true,
     }, {
-        name: `👥 AVAILABILITY (${availablePlayers.length} in • ${outPlayers.length} out)`,
+        name: `👥 AVAILABILITY`,
         value: availablePlayers.length || outPlayers.length
-            ? (availablePlayers.length ? `🟢 **Available:** ${availablePlayers.join(', ').slice(0, 450)}\n` : '') +
-                (outPlayers.length ? `🔴 **Out:** ${outPlayers.join(', ').slice(0, 450)}` : '')
+            ? `🟢 **${availablePlayers.length}** Available ┃ 🔴 **${outPlayers.length}** Out` +
+                (availablePlayers.length <= 6 && outPlayers.length <= 3
+                    ? `\n🟢 *In:* ${availablePlayers.join(', ')}` + (outPlayers.length ? `\n🔴 *Out:* ${outPlayers.join(', ')}` : '')
+                    : '')
             : '*No responses recorded yet*',
         inline: false,
     })
