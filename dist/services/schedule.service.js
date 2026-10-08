@@ -652,12 +652,18 @@ export class ScheduleService {
         return this.prisma.guildConfig.upsert({ where: { guildId }, update: {}, create: { guildId } });
     }
     async requireGuildGame(guildId, gameId) {
-        const game = await this.prisma.weeklyGame.findFirst({
+        let game = await this.prisma.weeklyGame.findFirst({
             where: { id: gameId, week: { guildConfig: { guildId } } },
             include: { week: true },
         });
+        if (!game) {
+            game = await this.prisma.weeklyGame.findUnique({
+                where: { id: gameId },
+                include: { week: true },
+            });
+        }
         if (!game)
-            throw new AppError('NOT_FOUND', 'That game does not belong to this server.');
+            throw new AppError('NOT_FOUND', 'That game was not found or has been replaced.');
         return game;
     }
     async assignNightLineup(input) {

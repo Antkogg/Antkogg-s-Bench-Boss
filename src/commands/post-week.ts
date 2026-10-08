@@ -16,7 +16,7 @@ import { brandedEmbed } from '../renderers/design.js';
 import { renderIndividualGamePost } from '../renderers/schedule.renderer.js';
 import { customId, type ParsedCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
-import { syncAvailabilityPost } from './schedule.js';
+import { syncAvailabilityPost, syncLineupDashboard } from './schedule.js';
 
 export async function handlePostWeek(
   interaction: ChatInputCommandInteraction,
@@ -276,7 +276,10 @@ async function executePostWeek(
     // 2. Post weekly overview board
     await syncAvailabilityPost(guildId, fullWeek as any, context, interaction.client);
 
-    // 3. Post individual game cards
+    // 3. Post/sync lineup dashboard in #set-lineups
+    await syncLineupDashboard(guildId, fullWeek as any, context, interaction.client);
+
+    // 4. Post individual game cards
     const activeGames = fullWeek.games.filter((g: any) => g.status !== 'CANCELLED');
     for (let i = 0; i < activeGames.length; i++) {
       const g = activeGames[i]!;

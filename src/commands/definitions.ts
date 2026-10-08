@@ -103,6 +103,10 @@ export const commandDefinitions = [
       option.setName('game').setDescription('Game number (1, 2...) or ID to set individually'),
     ),
   new SlashCommandBuilder()
+    .setName('set-lineups')
+    .setDescription('Open or sync the weekly lineup management dashboard in #set-lineups')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder()
     .setName('set-code')
     .setDescription('Set or update server and password code for a game')
     .addStringOption((option) =>

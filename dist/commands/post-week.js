@@ -7,7 +7,7 @@ import { brandedEmbed } from '../renderers/design.js';
 import { renderIndividualGamePost } from '../renderers/schedule.renderer.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
-import { syncAvailabilityPost } from './schedule.js';
+import { syncAvailabilityPost, syncLineupDashboard } from './schedule.js';
 export async function handlePostWeek(interaction, context) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
@@ -215,7 +215,9 @@ async function executePostWeek(interaction, context, weekData) {
         }
         // 2. Post weekly overview board
         await syncAvailabilityPost(guildId, fullWeek, context, interaction.client);
-        // 3. Post individual game cards
+        // 3. Post/sync lineup dashboard in #set-lineups
+        await syncLineupDashboard(guildId, fullWeek, context, interaction.client);
+        // 4. Post individual game cards
         const activeGames = fullWeek.games.filter((g) => g.status !== 'CANCELLED');
         for (let i = 0; i < activeGames.length; i++) {
             const g = activeGames[i];

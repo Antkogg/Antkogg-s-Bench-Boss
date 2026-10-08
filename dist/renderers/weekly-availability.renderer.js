@@ -111,7 +111,7 @@ export function renderWeeklyAvailability(week, rosterMembers) {
             });
         }
     }
-    // Row 1: Player Availability & Schedule Buttons
+    // Player Availability Buttons
     const playerRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId(customId('weekly-availability', week.id, 'avail-all'))
         .setLabel('🟢 Available for ALL')
@@ -125,20 +125,6 @@ export function renderWeeklyAvailability(week, rosterMembers) {
         .setCustomId(customId('weekly-availability', week.id, 'unavailable'))
         .setLabel('🔴 Out for ALL')
         .setStyle(ButtonStyle.Danger));
-    // Row 2: Management Controls
-    const mgmtRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('lineup-action', week.id, 'night-prompt'))
-        .setLabel('⚡ Night Lineup')
-        .setStyle(ButtonStyle.Success), new ButtonBuilder()
-        .setCustomId(customId('lineup-action', week.id, 'choose-game'))
-        .setLabel('📋 Set Lineup')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('lineup-action', week.id, 'lock-lines'))
-        .setLabel('🔒 Lock Weekly Lines')
-        .setStyle(ButtonStyle.Danger), new ButtonBuilder()
-        .setCustomId(customId('weekly-availability', week.id, 'refresh'))
-        .setLabel('🔄 Refresh')
-        .setStyle(ButtonStyle.Secondary));
     if (week.status === 'LOCKED') {
         return {
             embeds: [embed],
@@ -147,7 +133,7 @@ export function renderWeeklyAvailability(week, rosterMembers) {
     }
     return {
         embeds: [embed],
-        components: games.length ? [playerRow, mgmtRow] : [mgmtRow],
+        components: games.length ? [playerRow] : [],
     };
 }
 //# sourceMappingURL=weekly-availability.renderer.js.map

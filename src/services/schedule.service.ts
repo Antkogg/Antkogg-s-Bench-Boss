@@ -865,11 +865,17 @@ export class ScheduleService {
   }
 
   private async requireGuildGame(guildId: string, gameId: string) {
-    const game = await this.prisma.weeklyGame.findFirst({
+    let game = await this.prisma.weeklyGame.findFirst({
       where: { id: gameId, week: { guildConfig: { guildId } } },
       include: { week: true },
     });
-    if (!game) throw new AppError('NOT_FOUND', 'That game does not belong to this server.');
+    if (!game) {
+      game = await this.prisma.weeklyGame.findUnique({
+        where: { id: gameId },
+        include: { week: true },
+      });
+    }
+    if (!game) throw new AppError('NOT_FOUND', 'That game was not found or has been replaced.');
     return game;
   }
 
@@ -1254,3 +1260,5 @@ export class ScheduleService {
     });
   }
 }
+
+export type WeekSchedulingSummary = NonNullable<Awaited<ReturnType<ScheduleService['getWeekSchedulingSummary']>>>;

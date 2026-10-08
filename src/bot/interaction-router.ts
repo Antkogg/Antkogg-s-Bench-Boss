@@ -23,6 +23,7 @@ import {
   handleDeleteGame,
   handleGame,
   handleLineupCommand,
+  handleSetLineupsCommand,
   handleSchedule,
   handleSetCode,
   handleTimezone,
@@ -57,6 +58,8 @@ import {
   handleWeekButton,
   handleWeekDayModal,
   handleWeekGameSelect,
+  handleEcuGameSelect,
+  handleEcuPosSelect,
 } from '../interactions/schedule.js';
 import { handleWelcomeButton, handleWelcomeSelectMenu } from '../interactions/welcome.js';
 import { parseCustomId } from '../utils/custom-id.js';
@@ -99,6 +102,7 @@ export async function routeInteraction(
       else if (interaction.commandName === 'add-games') await handleAddGames(interaction, context);
       else if (interaction.commandName === 'post-week') await handlePostWeek(interaction, context);
       else if (interaction.commandName === 'lineup') await handleLineupCommand(interaction, context);
+      else if (interaction.commandName === 'set-lineups') await handleSetLineupsCommand(interaction, context);
       else if (interaction.commandName === 'delete-game') await handleDeleteGame(interaction, context);
       else if (interaction.commandName === 'games') await handleSchedule(interaction, context);
       else if (interaction.commandName === 'schedule') await handleSchedule(interaction, context);
@@ -155,6 +159,10 @@ export async function routeInteraction(
         (parsed.action === 'lineup-action' && parsed.value === 'game-chosen')
       )
         await handleWeekGameSelect(interaction, context);
+      else if (parsed.action === 'lineup-action' && parsed.value === 'ecu-game-chosen')
+        await handleEcuGameSelect(interaction, context);
+      else if (parsed.action === 'ecu-pos-select')
+        await handleEcuPosSelect(interaction, context, parsed);
       else if (parsed.action === 'lineup-position-select')
         await handleLineupPositionSelect(interaction, context, parsed);
       else if (parsed.action === 'lineup-player-select')

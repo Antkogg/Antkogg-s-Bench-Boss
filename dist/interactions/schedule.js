@@ -4,8 +4,8 @@ import { localWeekday } from '../domain/schedule-time.js';
 import { publishAvailability } from '../commands/availability.js';
 import { requireManagement } from '../commands/authorization.js';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
-import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek } from '../renderers/schedule.renderer.js';
-import { parseScheduleLine, syncAvailabilityPost, syncSingleGamePost } from '../commands/schedule.js';
+import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek, renderLineupDashboard } from '../renderers/schedule.renderer.js';
+import { parseScheduleLine, syncAvailabilityPost, syncSingleGamePost, syncLineupDashboard } from '../commands/schedule.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { customId, parseCustomId } from '../utils/custom-id.js';
@@ -139,6 +139,73 @@ export async function handleWeekGameSelect(interaction, context) {
         throw new AppError('NOT_FOUND', 'Game not found.');
     await interaction.update(renderGame(game, true));
 }
+export async function handleEcuGameSelect(interaction, context) {
+    await requireManagement(interaction, context);
+    const gameId = interaction.values[0];
+    const game = await context.schedule.game(gameId);
+    if (!game)
+        throw new AppError('NOT_FOUND', 'Game not found.');
+    const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+        .setCustomId(customId('ecu-pos-select', game.id))
+        .setPlaceholder('Choose which position needs an ECU...')
+        .addOptions(POSITIONS.map((p) => ({ label: `Find ECU for ${p}`, value: p }))));
+    await interaction.update({
+        content: `🔍 Looking for ECU for **${gameOpponentLabel(game)}**:\nChoose the position:`,
+        embeds: [],
+        components: [row],
+    });
+}
+export async function handleEcuPosSelect(interaction, context, parsed) {
+    if (!interaction.guildId)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await requireManagement(interaction, context);
+    const position = interaction.values[0];
+    const gameId = parsed?.entityId || parseCustomId(interaction.customId).entityId;
+    const game = await context.schedule.game(gameId);
+    if (!game)
+        throw new AppError('NOT_FOUND', 'Game not found.');
+    const tcPlayers = await context.prisma.player.findMany({
+        where: {
+            guildConfig: { guildId: interaction.guildId },
+            teamStatus: 'TC',
+        },
+        include: {
+            weeklyAvailability: {
+                where: { weekId: game.weekId },
+                include: { responses: { where: { gameId: game.id } } },
+                take: 1,
+            },
+            gameLineups: {
+                where: { game: { weekId: game.weekId } },
+            },
+        },
+        orderBy: [{ eaTag: 'asc' }],
+    });
+    const availableTc = tcPlayers.filter((p) => p.weeklyAvailability[0]?.responses[0]?.status === 'AVAILABLE');
+    if (!availableTc.length) {
+        await interaction.update({
+            content: `⚠️ No TC players submitted availability as **Available** for **${gameOpponentLabel(game)}**.\n\nYou can still use the regular **Set Lineup** button to manually assign any player.`,
+            components: [],
+        });
+        return;
+    }
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId(customId('lineup-player-select', game.id, position))
+        .setPlaceholder(`Choose available TC player for ${position}...`)
+        .addOptions(availableTc.slice(0, 25).map((player) => {
+        const gamesPlayed = player.gameLineups?.length ?? 0;
+        const ecuNote = gamesPlayed >= 2 ? '⚠️ (Used 2 ECU games)' : `(${gamesPlayed}/2 ECU games used)`;
+        return {
+            label: `${player.eaTag} [TC]`.slice(0, 100),
+            value: player.id,
+            description: `🟢 Available • ${ecuNote}`,
+        };
+    }));
+    await interaction.update({
+        content: `Found **${availableTc.length} available TC player(s)** for **${position}** in **${gameOpponentLabel(game)}**:\nSelect a player below to insert into the lineup:`,
+        components: [new ActionRowBuilder().addComponents(menu)],
+    });
+}
 export async function handleLineupButton(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
@@ -165,6 +232,7 @@ export async function handleLineupButton(interaction, context, parsed) {
                 dmCount++;
         }
         await syncAvailabilityPost(interaction.guildId, result.week, context, interaction.client);
+        await syncLineupDashboard(interaction.guildId, result.week, context, interaction.client);
         const warning = result.openSpots > 0
             ? `\n⚠️ **${result.openSpots} lineup spot(s) were still open.**`
             : '';
@@ -175,6 +243,56 @@ export async function handleLineupButton(interaction, context, parsed) {
                     `Delivered personalized schedule DMs to **${dmCount} player(s)**.${warning}\n` +
                     `The board in \`#team-availability\` is updated and locked.`),
             ],
+        });
+        return;
+    }
+    // Refresh Dashboard
+    if (parsed.value === 'refresh-dashboard') {
+        let week = await context.schedule.getWeek(parsed.entityId);
+        if (!week) {
+            const g = await context.schedule.game(parsed.entityId);
+            if (g)
+                week = await context.schedule.getWeek(g.weekId);
+        }
+        if (!week)
+            throw new AppError('NOT_FOUND', 'Week not found.');
+        await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
+        const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId, week.id);
+        const payload = renderLineupDashboard(week, summary);
+        await interaction.reply({
+            ephemeral: true,
+            content: '🔄 Lineup Dashboard refreshed in <#1557879793809096824>!',
+            embeds: payload.embeds,
+            components: payload.components,
+        });
+        return;
+    }
+    // Find ECU
+    if (parsed.value === 'find-ecu') {
+        let week = await context.schedule.getWeek(parsed.entityId);
+        if (!week) {
+            const g = await context.schedule.game(parsed.entityId);
+            if (g)
+                week = await context.schedule.getWeek(g.weekId);
+        }
+        if (!week)
+            throw new AppError('NOT_FOUND', 'Week not found.');
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        if (!activeGames.length) {
+            throw new AppError('NOT_FOUND', 'No active games in this week.');
+        }
+        const selectMenu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+            .setCustomId(customId('lineup-action', week.id, 'ecu-game-chosen'))
+            .setPlaceholder('Choose game that needs an ECU replacement...')
+            .addOptions(activeGames.map((g, idx) => ({
+            label: `Game ${idx + 1}: ${gameOpponentLabel(g)}`.slice(0, 100),
+            value: g.id,
+            description: DateTime.fromJSDate(g.scheduledAtUtc).toFormat('cccc h:mm a'),
+        }))));
+        await interaction.reply({
+            ephemeral: true,
+            content: '🔍 **Select which game needs an ECU / replacement player:**',
+            components: [selectMenu],
         });
         return;
     }
@@ -203,7 +321,12 @@ export async function handleLineupButton(interaction, context, parsed) {
     }
     // Choose game from week
     if (parsed.value === 'choose-game') {
-        const week = await context.schedule.getWeek(parsed.entityId);
+        let week = await context.schedule.getWeek(parsed.entityId);
+        if (!week) {
+            const g = await context.schedule.game(parsed.entityId);
+            if (g)
+                week = await context.schedule.getWeek(g.weekId);
+        }
         if (!week)
             throw new AppError('NOT_FOUND', 'Week not found.');
         const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
@@ -414,6 +537,9 @@ export async function handleLineupPlayerSelect(interaction, context, parsed) {
     }
     if (interaction.guildId) {
         await syncSingleGamePost(interaction.guildId, parsed.entityId, context, interaction.client);
+        if (week) {
+            await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
+        }
     }
     await interaction.update({ content: `Lineup updated.${warning}`, ...renderGame(game, true) });
 }
@@ -455,6 +581,9 @@ export async function handleLineupUserSelect(interaction, context, parsed) {
     }
     if (interaction.guildId) {
         await syncSingleGamePost(interaction.guildId, parsed.entityId, context, interaction.client);
+        if (week) {
+            await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
+        }
     }
     await interaction.update({
         content: `Lineup updated: added <@${member.user.id}> at **${position}**.`,
@@ -848,6 +977,7 @@ export async function handleNightPlayerSelect(interaction, context, parsed) {
         .filter((g) => g.status !== 'CANCELLED' && localWeekday(g.scheduledAtUtc, tz) === day)
         .sort((a, b) => a.scheduledAtUtc.getTime() - b.scheduledAtUtc.getTime());
     await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
+    await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
     for (const g of dayGames) {
         await syncSingleGamePost(interaction.guildId, g.id, context, interaction.client);
     }

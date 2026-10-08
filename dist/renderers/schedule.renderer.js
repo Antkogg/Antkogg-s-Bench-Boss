@@ -266,19 +266,92 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
         .setLabel(`No ${dayName}`)
         .setStyle(ButtonStyle.Secondary));
-    const secondaryRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(customId('game-action', game.id, 'code'))
-        .setLabel('🎮 Set Code')
-        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
-        .setCustomId(customId('lineup-action', game.id, 'choose-game'))
-        .setLabel('📋 Set Lineup')
-        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
-        .setCustomId(customId('lineup-action', game.id, 'confirm'))
-        .setLabel('✅ Confirm Lineup')
-        .setStyle(ButtonStyle.Success));
     return {
         embeds: [embed],
-        components: [playerRow, secondaryRow],
+        components: [playerRow],
+    };
+}
+export function renderLineupDashboard(week, summary) {
+    const embed = brandedEmbed()
+        .setTitle(`🏒 ${week.label.toUpperCase()} LINEUP DASHBOARD`)
+        .setDescription(`⚡ **Boston University Lineup Operations**\n` +
+        `Assign lines for Sunday, Monday, and Tuesday below. Changes sync directly to the game cards in <#1543417189208428564>.\n`);
+    const formatLine = (nightSummary) => {
+        if (!nightSummary || !nightSummary.games.length)
+            return '*No games scheduled*';
+        const l = nightSummary.lineup ?? {};
+        const fmt = (pos) => (l[pos] ? `<@${l[pos].discordUserId}>` : '*Open*');
+        const tag = nightSummary.isUnified
+            ? '✅ `Same 6 All Night`'
+            : nightSummary.openCount > 0
+                ? `⚠️ \`${nightSummary.openCount} Open Spots\``
+                : '🔀 `Split Line`';
+        return (`\`LW\` ${fmt('LW')} ┃ \`C\` ${fmt('C')} ┃ \`RW\` ${fmt('RW')}\n` +
+            `\`LD\` ${fmt('LD')} ┃ \`RD\` ${fmt('RD')} ┃ \`G\` ${fmt('G')}\n` +
+            `*Status:* ${tag}`);
+    };
+    if (summary) {
+        embed.addFields({
+            name: `📅 SUNDAY LINE (${summary.gamesByNight.SUNDAY.length} Games)`,
+            value: formatLine(summary.nightLines.SUNDAY),
+            inline: false,
+        }, {
+            name: `📅 MONDAY LINE (${summary.gamesByNight.MONDAY.length} Games)`,
+            value: formatLine(summary.nightLines.MONDAY),
+            inline: false,
+        }, {
+            name: `📅 TUESDAY LINE (${summary.gamesByNight.TUESDAY.length} Games)`,
+            value: formatLine(summary.nightLines.TUESDAY),
+            inline: false,
+        });
+        const counts = summary.playerGameCounts ?? [];
+        if (counts.length) {
+            const countsText = counts
+                .map((p) => {
+                const check = p.count === 3 ? '✅' : p.count > 3 ? '⚠️' : '▫️';
+                return `${check} <@${p.player.discordUserId}>: **${p.count}** games`;
+            })
+                .join(' • ');
+            embed.addFields({
+                name: '📊 ASSIGNED GAMES TRACKER (Target: 3 games)',
+                value: countsText.slice(0, 1024),
+                inline: false,
+            });
+        }
+        if (summary.openSpots > 0) {
+            embed.addFields({
+                name: '⚠️ ATTENTION NEEDED',
+                value: `**${summary.openSpots} open lineup spot(s)** remaining across the week.`,
+                inline: false,
+            });
+        }
+    }
+    const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'night-SUNDAY'))
+        .setLabel('⚡ Sunday Line')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'night-MONDAY'))
+        .setLabel('⚡ Monday Line')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'night-TUESDAY'))
+        .setLabel('⚡ Tuesday Line')
+        .setStyle(ButtonStyle.Primary));
+    const row2 = new ActionRowBuilder().addComponents(new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'choose-game'))
+        .setLabel('🛠️ Single Game Edit')
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'find-ecu'))
+        .setLabel('🔍 Find ECU / Replacement')
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'lock-lines'))
+        .setLabel('🔒 Lock Weekly Lines')
+        .setStyle(ButtonStyle.Danger), new ButtonBuilder()
+        .setCustomId(customId('lineup-action', week.id, 'refresh-dashboard'))
+        .setLabel('🔄 Refresh')
+        .setStyle(ButtonStyle.Secondary));
+    return {
+        embeds: [embed],
+        components: [row1, row2],
     };
 }
 //# sourceMappingURL=schedule.renderer.js.map

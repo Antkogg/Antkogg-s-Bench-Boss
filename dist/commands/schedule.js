@@ -1,12 +1,12 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, } from 'discord.js';
 import { DateTime } from 'luxon';
 import { accessLevel, hasManagementAccess } from '../domain/permissions.js';
-import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek, renderPlayerWeek, } from '../renderers/schedule.renderer.js';
+import { gameOpponentLabel, renderGame, renderIndividualGamePost, renderManagementWeek, renderPlayerWeek, renderLineupDashboard, } from '../renderers/schedule.renderer.js';
 import { renderWeeklyAvailability } from '../renderers/weekly-availability.renderer.js';
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
-import { DEFAULT_AVAILABILITY_CHANNEL_ID } from '../config/constants.js';
+import { DEFAULT_AVAILABILITY_CHANNEL_ID, DEFAULT_SET_LINEUPS_CHANNEL_ID } from '../config/constants.js';
 import { requireManagement } from './authorization.js';
 import { getTeamMembersWithRole } from './management.js';
 import { localWeekday } from '../domain/schedule-time.js';
@@ -60,6 +60,29 @@ export async function syncAvailabilityPost(guildId, week, context, client) {
     }
     catch (err) {
         console.error('Failed to sync weekly availability post:', err);
+        return null;
+    }
+}
+export async function syncLineupDashboard(guildId, week, context, client) {
+    const channelId = DEFAULT_SET_LINEUPS_CHANNEL_ID;
+    try {
+        const channel = (await client.channels.fetch(channelId).catch(() => null));
+        if (!channel?.isTextBased())
+            return null;
+        const summary = await context.schedule.getWeekSchedulingSummary(guildId, week.id);
+        const payload = renderLineupDashboard(week, summary);
+        const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+        const botMsg = messages?.find((m) => m.author.id === client.user.id);
+        if (botMsg) {
+            await botMsg.edit(payload);
+        }
+        else {
+            await channel.send(payload);
+        }
+        return channel;
+    }
+    catch (err) {
+        console.error('Failed to sync lineup dashboard:', err);
         return null;
     }
 }
@@ -588,5 +611,23 @@ export async function handleLineupCommand(interaction, context) {
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
     await interaction.editReply(renderGame(game, true));
+}
+export async function handleSetLineupsCommand(interaction, context) {
+    if (!interaction.guildId || !interaction.guild)
+        throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
+    await interaction.deferReply({ ephemeral: true });
+    await requireManagement(interaction, context);
+    const week = await context.schedule.currentWeek(interaction.guildId);
+    if (!week) {
+        throw new AppError('NOT_FOUND', 'No active week found. Use `/post-week` first.');
+    }
+    await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
+    const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId, week.id);
+    const payload = renderLineupDashboard(week, summary);
+    await interaction.editReply({
+        content: `✅ Lineup Dashboard posted and synced in <#${DEFAULT_SET_LINEUPS_CHANNEL_ID}>!`,
+        embeds: payload.embeds,
+        components: payload.components,
+    });
 }
 //# sourceMappingURL=schedule.js.map
