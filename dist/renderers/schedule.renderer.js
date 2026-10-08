@@ -279,6 +279,9 @@ export function renderIndividualGamePost(game, gameNumber) {
         .setCustomId(customId('game-day-avail', game.id, 'available'))
         .setLabel(`All ${dayName}`)
         .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
+        .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+        .setLabel(`Out ${dayName}`)
+        .setStyle(ButtonStyle.Secondary), new ButtonBuilder()
         .setCustomId(customId('game-action', game.id, 'view-list'))
         .setLabel("📋 Who's In?")
         .setStyle(ButtonStyle.Secondary));

@@ -403,6 +403,10 @@ export function renderIndividualGamePost(
       .setLabel(`All ${dayName}`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
+      .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
+      .setLabel(`Out ${dayName}`)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(customId('game-action', game.id, 'view-list'))
       .setLabel("📋 Who's In?")
       .setStyle(ButtonStyle.Secondary),
