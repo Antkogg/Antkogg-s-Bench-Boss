@@ -246,6 +246,71 @@ export async function handleLineupButton(interaction, context, parsed) {
         });
         return;
     }
+    // Master Availability Sheet
+    if (parsed.value === 'avail-sheet') {
+        let week = await context.schedule.getWeek(parsed.entityId);
+        if (!week) {
+            const g = await context.schedule.game(parsed.entityId);
+            if (g)
+                week = await context.schedule.getWeek(g.weekId);
+        }
+        if (!week)
+            throw new AppError('NOT_FOUND', 'Week not found.');
+        const activeGames = week.games.filter((g) => g.status !== 'CANCELLED');
+        const totalGames = activeGames.length;
+        const allPlayers = await context.prisma.player.findMany({
+            where: {
+                guildConfig: { guildId: interaction.guildId },
+                teamStatus: { in: ['ROSTER', 'TC'] },
+            },
+            include: {
+                weeklyAvailability: {
+                    where: { weekId: week.id },
+                    include: { responses: { where: { gameId: { in: activeGames.map((g) => g.id) } } } },
+                    take: 1,
+                },
+            },
+            orderBy: [{ teamStatus: 'asc' }, { eaTag: 'asc' }],
+        });
+        const fullAvail = [];
+        const partialAvail = [];
+        const outAll = [];
+        const noResponse = [];
+        for (const p of allPlayers) {
+            const responses = p.weeklyAvailability[0]?.responses ?? [];
+            const availCount = responses.filter((r) => r.status === 'AVAILABLE').length;
+            const tcTag = p.teamStatus === 'TC' ? ' *(TC)*' : '';
+            const mention = `<@${p.discordUserId}>${tcTag}`;
+            if (!responses.length) {
+                noResponse.push(mention);
+            }
+            else if (availCount === totalGames) {
+                fullAvail.push(`${mention} (${totalGames}/${totalGames})`);
+            }
+            else if (availCount === 0) {
+                outAll.push(mention);
+            }
+            else {
+                partialAvail.push(`${mention} (${availCount}/${totalGames})`);
+            }
+        }
+        const embed = brandedEmbed()
+            .setTitle(`📋 ${week.label.toUpperCase()} MASTER AVAILABILITY SHEET`)
+            .setDescription(`Total Active Players: **${allPlayers.length}** • Games Scheduled: **${totalGames}**\n\n` +
+            `🟢 **AVAILABLE FOR ALL GAMES (${fullAvail.length}):**\n` +
+            (fullAvail.length ? fullAvail.join(', ').slice(0, 950) : '*None*') +
+            `\n\n🟡 **PARTIAL AVAILABILITY (${partialAvail.length}):**\n` +
+            (partialAvail.length ? partialAvail.join(', ').slice(0, 950) : '*None*') +
+            `\n\n🔴 **OUT FOR ALL GAMES (${outAll.length}):**\n` +
+            (outAll.length ? outAll.join(', ').slice(0, 950) : '*None*') +
+            `\n\n⚪ **NO RESPONSE YET (${noResponse.length}):**\n` +
+            (noResponse.length ? noResponse.join(', ').slice(0, 950) : '*None*'));
+        await interaction.reply({
+            ephemeral: true,
+            embeds: [embed],
+        });
+        return;
+    }
     // Refresh Dashboard
     if (parsed.value === 'refresh-dashboard') {
         let week = await context.schedule.getWeek(parsed.entityId);
@@ -609,6 +674,32 @@ export async function handleGameButton(interaction, context, parsed) {
     const game = await context.schedule.game(parsed.entityId);
     if (!game)
         throw new AppError('NOT_FOUND', 'Game not found.');
+    // Who's In / View List
+    if (parsed.value === 'view-list') {
+        const available = (game.responses ?? [])
+            .filter((r) => r.status === 'AVAILABLE')
+            .map((r) => `<@${r.submission.player.discordUserId}>`);
+        const out = (game.responses ?? [])
+            .filter((r) => r.status === 'UNAVAILABLE')
+            .map((r) => `<@${r.submission.player.discordUserId}>`);
+        const userResponse = game.responses?.find((r) => r.submission.player.discordUserId === interaction.user.id);
+        const myStatus = userResponse
+            ? userResponse.status === 'AVAILABLE'
+                ? '🟢 **AVAILABLE**'
+                : '🔴 **OUT**'
+            : '⚪ **NO RESPONSE YET**';
+        const embed = brandedEmbed()
+            .setTitle(`📋 Game Responses: ${gameOpponentLabel(game).toUpperCase()}`)
+            .setDescription(`📅 **Time:** <t:${Math.floor(game.scheduledAtUtc.getTime() / 1000)}:F>\n\n` +
+            `👤 **Your Status:** ${myStatus}\n\n` +
+            `🟢 **Available (${available.length}):**\n${available.length ? available.join(', ').slice(0, 800) : '*None yet*'}\n\n` +
+            `🔴 **Out (${out.length}):**\n${out.length ? out.join(', ').slice(0, 800) : '*None*'}`);
+        await interaction.reply({
+            ephemeral: true,
+            embeds: [embed],
+        });
+        return;
+    }
     const member = await interaction.guild.members.fetch(interaction.user.id);
     const config = await context.config.get(interaction.guildId);
     const isMgmt = hasManagementAccess(accessLevel(member, config));

@@ -388,8 +388,8 @@ export function renderIndividualGamePost(
       .setLabel(`All ${dayName}`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(customId('game-day-avail', game.id, 'unavailable'))
-      .setLabel(`No ${dayName}`)
+      .setCustomId(customId('game-action', game.id, 'view-list'))
+      .setLabel("📋 Who's In?")
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -491,11 +491,15 @@ export function renderLineupDashboard(
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', week.id, 'find-ecu'))
-      .setLabel('🔍 Find ECU / Replacement')
+      .setLabel('🔍 Find ECU')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
+      .setCustomId(customId('lineup-action', week.id, 'avail-sheet'))
+      .setLabel('📋 Availability Sheet')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
       .setCustomId(customId('lineup-action', week.id, 'lock-lines'))
-      .setLabel('🔒 Lock Weekly Lines')
+      .setLabel('🔒 Lock Lines')
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(customId('lineup-action', week.id, 'refresh-dashboard'))
