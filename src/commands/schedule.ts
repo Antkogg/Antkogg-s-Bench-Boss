@@ -21,7 +21,7 @@ import { renderWeeklyAvailability } from '../renderers/weekly-availability.rende
 import { brandedEmbed, renderSuccess } from '../renderers/design.js';
 import { customId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
-import { DEFAULT_AVAILABILITY_CHANNEL_ID, DEFAULT_SET_LINEUPS_CHANNEL_ID } from '../config/constants.js';
+import { DEFAULT_AVAILABILITY_CHANNEL_ID, DEFAULT_SET_LINEUPS_CHANNEL_ID, DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
 import { requireManagement } from './authorization.js';
 import { getTeamMembersWithRole } from './management.js';
 import type { BotContext } from './context.js';
@@ -56,7 +56,7 @@ export async function syncAvailabilityPost(
     let rosterMembers: Array<{ id: string; displayName: string }> | undefined;
     if (guild) {
       try {
-        const { members } = await getTeamMembersWithRole(guild, config.rosterRoleId, false);
+        const { members } = await getTeamMembersWithRole(guild, DEFAULT_TEAM_ROLE_ID, true);
         rosterMembers = members.map((m) => ({
           id: m.id,
           displayName: m.displayName || m.user.username,

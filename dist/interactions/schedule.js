@@ -806,6 +806,9 @@ export async function handleGameAvailButton(interaction, context, parsed) {
     const gameIndex = activeGames.findIndex((g) => g.id === game.id);
     const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
     await interaction.update(renderIndividualGamePost(updatedGame, gameNumber));
+    if (week) {
+        syncAvailabilityPost(interaction.guildId, week, context, interaction.client).catch(() => null);
+    }
 }
 export async function handleGameDayAvailButton(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
@@ -915,6 +918,7 @@ export async function handleGameDayAvailButton(interaction, context, parsed) {
             }
         }
     }
+    syncAvailabilityPost(interaction.guildId, week, context, interaction.client).catch(() => null);
 }
 export async function handleGameCodeModal(interaction, context, parsed) {
     if (!interaction.guildId)

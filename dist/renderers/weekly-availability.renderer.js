@@ -2,11 +2,13 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { customId } from '../utils/custom-id.js';
 import { brandedEmbed } from './design.js';
 import { localWeekday } from '../domain/schedule-time.js';
+import { DEFAULT_TEAM_ROLE_ID, DEFAULT_ROSTER_ROLE_ID, DEFAULT_TC_ROLE_ID, } from '../config/constants.js';
 export function renderWeeklyAvailability(week, rosterMembers) {
     const games = week.games.filter((game) => game.status !== 'CANCELLED');
-    const rosterRoleId = week.guildConfig?.rosterRoleId;
-    const tcRoleId = week.guildConfig?.tcRoleId;
+    const rosterRoleId = week.guildConfig?.rosterRoleId ?? DEFAULT_ROSTER_ROLE_ID;
+    const tcRoleId = week.guildConfig?.tcRoleId ?? DEFAULT_TC_ROLE_ID;
     const roleText = [
+        `Team: <@&${DEFAULT_TEAM_ROLE_ID}>`,
         rosterRoleId ? `Roster: <@&${rosterRoleId}>` : null,
         tcRoleId ? `TC: <@&${tcRoleId}>` : null,
     ]
@@ -96,18 +98,22 @@ export function renderWeeklyAvailability(week, rosterMembers) {
             inline: false,
         });
     }
-    // Pending roster members who haven't responded yet
+    // Pending team members who haven't responded yet
     if (rosterMembers && rosterMembers.length) {
         const submittedIds = new Set(week.submissions?.map((s) => s.player.discordUserId) ?? []);
         const pending = rosterMembers.filter((m) => !submittedIds.has(m.id));
         if (pending.length) {
+            const display = pending.slice(0, 25).map((m) => `<@${m.id}>`).join(', ');
+            const extra = pending.length > 25 ? `\n*...and ${pending.length - 25} more*` : '';
             embed.addFields({
-                name: `⚪ PENDING ROSTER RESPONSES (${pending.length})`,
-                value: pending
-                    .slice(0, 20)
-                    .map((m) => `<@${m.id}>`)
-                    .join(', ')
-                    .slice(0, 1024),
+                name: `⚪ PENDING S55 BU RESPONSES (${pending.length})`,
+                value: (display + extra).slice(0, 1024),
+            });
+        }
+        else {
+            embed.addFields({
+                name: '⚪ PENDING S55 BU RESPONSES (0)',
+                value: `🎉 **All ${rosterMembers.length} team members have submitted!**`,
             });
         }
     }

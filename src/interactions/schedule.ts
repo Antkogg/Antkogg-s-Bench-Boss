@@ -1060,6 +1060,10 @@ export async function handleGameAvailButton(
   const gameNumber = gameIndex >= 0 ? gameIndex + 1 : undefined;
 
   await interaction.update(renderIndividualGamePost(updatedGame, gameNumber));
+
+  if (week) {
+    syncAvailabilityPost(interaction.guildId, week as any, context, interaction.client).catch(() => null);
+  }
 }
 
 export async function handleGameDayAvailButton(
@@ -1195,6 +1199,8 @@ export async function handleGameDayAvailButton(
       }
     }
   }
+
+  syncAvailabilityPost(interaction.guildId, week as any, context, interaction.client).catch(() => null);
 }
 
 export async function handleGameCodeModal(

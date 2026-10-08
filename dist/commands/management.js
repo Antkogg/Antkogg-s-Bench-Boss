@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelec
 import { capacity } from '../domain/scouting.js';
 import { brandedEmbed, discordTimestamp, renderSuccess } from '../renderers/design.js';
 import { AppError } from '../utils/errors.js';
-import { DEFAULT_TEAM_ROLE_ID } from '../config/constants.js';
+import { DEFAULT_TEAM_ROLE_ID, DEFAULT_ROSTER_ROLE_ID } from '../config/constants.js';
 import { customId } from '../utils/custom-id.js';
 import { requireManagement } from './authorization.js';
 export async function handlePlayerSearch(interaction, context) {
@@ -121,28 +121,33 @@ export async function handleSetPosition(interaction, context) {
         ],
     });
 }
-export async function getTeamMembersWithRole(guild, configRole, forceFetch = false) {
+export async function getTeamMembersWithRole(guild, configRole, forceFetch = true) {
     if (!guild.roles.cache.size || forceFetch) {
         await guild.roles.fetch().catch(() => null);
     }
-    let role = guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
-        guild.roles.cache.get(configRole ?? '') ??
-        guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+    const roleId = configRole || DEFAULT_TEAM_ROLE_ID;
+    let role = guild.roles.cache.get(roleId) ??
+        guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+        guild.roles.cache.get(DEFAULT_ROSTER_ROLE_ID) ??
+        guild.roles.cache.find((r) => r.name.toLowerCase().includes('roster'));
     if (!role) {
         await guild.roles.fetch().catch(() => null);
         role =
-            guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
-                guild.roles.cache.get(configRole ?? '') ??
-                guild.roles.cache.get(DEFAULT_TEAM_ROLE_ID);
+            guild.roles.cache.get(roleId) ??
+                guild.roles.cache.find((r) => r.name.toLowerCase().includes('s55 bu')) ??
+                guild.roles.cache.get(DEFAULT_ROSTER_ROLE_ID) ??
+                guild.roles.cache.find((r) => r.name.toLowerCase().includes('roster'));
     }
     if (!role) {
-        throw new AppError('NOT_FOUND', 'Could not find the "S55 BU" team role in this server.');
+        throw new AppError('NOT_FOUND', `Could not find the team role (${roleId}) in this server.`);
     }
-    let members = Array.from(guild.members.cache.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
-    // If forceFetch requested or no members are currently cached, fetch all guild members from Discord API
-    if (forceFetch || members.length === 0) {
-        const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
+    let members = [];
+    try {
+        const allMembers = await guild.members.fetch();
         members = Array.from(allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+    }
+    catch {
+        members = Array.from(guild.members.cache.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
     }
     return { role, members };
 }
