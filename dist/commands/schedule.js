@@ -29,7 +29,7 @@ export async function syncAvailabilityPost(guildId, week, context, client) {
         let rosterMembers;
         if (guild) {
             try {
-                const { members } = await getTeamMembersWithRole(guild, DEFAULT_TEAM_ROLE_ID, true);
+                const { members } = await getTeamMembersWithRole(guild, DEFAULT_TEAM_ROLE_ID, false);
                 rosterMembers = members.map((m) => ({
                     id: m.id,
                     displayName: m.displayName || m.user.username,

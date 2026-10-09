@@ -239,15 +239,21 @@ export async function getTeamMembersWithRole(
   }
 
   let members: GuildMember[] = [];
-  try {
-    const allMembers = await guild.members.fetch();
-    members = Array.from(
-      allMembers.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
-    );
-  } catch {
-    members = Array.from(
-      guild.members.cache.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
-    );
+  const cachedRoleMembers = Array.from(
+    guild.members.cache.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
+  );
+
+  if (cachedRoleMembers.length > 0 && !forceFetch) {
+    members = cachedRoleMembers;
+  } else {
+    try {
+      const allMembers = await guild.members.fetch();
+      members = Array.from(
+        allMembers.filter((m) => m.roles.cache.has(role!.id) && !m.user.bot).values(),
+      );
+    } catch {
+      members = cachedRoleMembers;
+    }
   }
 
   return { role, members };

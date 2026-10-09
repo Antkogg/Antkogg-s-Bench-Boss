@@ -142,12 +142,18 @@ export async function getTeamMembersWithRole(guild, configRole, forceFetch = tru
         throw new AppError('NOT_FOUND', `Could not find the team role (${roleId}) in this server.`);
     }
     let members = [];
-    try {
-        const allMembers = await guild.members.fetch();
-        members = Array.from(allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+    const cachedRoleMembers = Array.from(guild.members.cache.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+    if (cachedRoleMembers.length > 0 && !forceFetch) {
+        members = cachedRoleMembers;
     }
-    catch {
-        members = Array.from(guild.members.cache.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+    else {
+        try {
+            const allMembers = await guild.members.fetch();
+            members = Array.from(allMembers.filter((m) => m.roles.cache.has(role.id) && !m.user.bot).values());
+        }
+        catch {
+            members = cachedRoleMembers;
+        }
     }
     return { role, members };
 }

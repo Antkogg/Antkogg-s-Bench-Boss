@@ -8,6 +8,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   UserSelectMenuBuilder,
+  GuildMember,
   type ButtonInteraction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
@@ -32,6 +33,21 @@ import { customId, parseCustomId, type ParsedCustomId } from '../utils/custom-id
 import { AppError } from '../utils/errors.js';
 import { DEFAULT_ROSTER_ROLE_ID } from '../config/constants.js';
 import { checkTeamRole, resolveMemberTeamStatus } from './weekly-availability.js';
+
+async function fetchOrGetMember(
+  interaction: ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction,
+): Promise<GuildMember> {
+  if (interaction.member && 'roles' in interaction.member && 'guild' in interaction.member) {
+    return interaction.member as GuildMember;
+  }
+  if (interaction.guild) {
+    const cached = interaction.guild.members.cache.get(interaction.user.id);
+    if (cached) return cached;
+    const fetched = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (fetched) return fetched;
+  }
+  throw new AppError('NOT_FOUND', 'Could not locate server member profile.');
+}
 
 const POSITIONS: ScoutingPosition[] = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
 
@@ -289,7 +305,7 @@ export async function handleLineupButton(
   if (!interaction.guildId || !interaction.guild)
     throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
 
-  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const member = await fetchOrGetMember(interaction);
   const config = await context.config.get(interaction.guildId);
   const isMgmt = hasManagementAccess(accessLevel(member, config));
 
@@ -423,11 +439,7 @@ export async function handleLineupButton(
       if (g) week = await context.schedule.getWeek(g.weekId);
     }
     if (!week) throw new AppError('NOT_FOUND', 'Week not found.');
-    await syncLineupDashboard(interaction.guildId!, week as any, context, interaction.client);
-    await syncAvailabilityPost(interaction.guildId!, week as any, context, interaction.client);
-    await Promise.allSettled(
-      week.games.map((g) => syncSingleGamePost(interaction.guildId!, g.id, context, interaction.client)),
-    );
+
     const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId!, week.id);
     const payload = renderLineupDashboard(week as any, summary);
     await interaction.editReply({
@@ -435,6 +447,12 @@ export async function handleLineupButton(
       embeds: payload.embeds,
       components: payload.components,
     });
+
+    syncLineupDashboard(interaction.guildId!, week as any, context, interaction.client).catch(() => null);
+    syncAvailabilityPost(interaction.guildId!, week as any, context, interaction.client).catch(() => null);
+    Promise.allSettled(
+      week.games.map((g) => syncSingleGamePost(interaction.guildId!, g.id, context, interaction.client)),
+    ).catch(() => null);
     return;
   }
 
@@ -798,7 +816,9 @@ export async function handleLineupUserSelect(
   await requireManagement(interaction, context);
   const position = parsed.value as ScoutingPosition;
   const targetUserId = interaction.values[0]!;
-  const member = await interaction.guild.members.fetch(targetUserId);
+  const member =
+    interaction.guild.members.cache.get(targetUserId) ??
+    (await interaction.guild.members.fetch(targetUserId));
 
   const player = await context.players.byDiscordId(
     interaction.guildId,
@@ -915,7 +935,7 @@ export async function handleGameButton(
     return;
   }
 
-  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const member = await fetchOrGetMember(interaction);
   const config = await context.config.get(interaction.guildId);
   const isMgmt = hasManagementAccess(accessLevel(member, config));
 
@@ -989,7 +1009,7 @@ export async function handleGameAvailButton(
     );
   }
 
-  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const member = await fetchOrGetMember(interaction);
   const player = await context.players.byDiscordId(
     interaction.guildId,
     member.user.id,
@@ -1077,7 +1097,7 @@ export async function handleGameDayAvailButton(
     );
   }
 
-  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const member = await fetchOrGetMember(interaction);
   const player = await context.players.byDiscordId(
     interaction.guildId,
     member.user.id,

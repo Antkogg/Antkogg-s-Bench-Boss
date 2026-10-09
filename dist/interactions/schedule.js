@@ -11,6 +11,20 @@ import { customId, parseCustomId } from '../utils/custom-id.js';
 import { AppError } from '../utils/errors.js';
 import { DEFAULT_ROSTER_ROLE_ID } from '../config/constants.js';
 import { checkTeamRole, resolveMemberTeamStatus } from './weekly-availability.js';
+async function fetchOrGetMember(interaction) {
+    if (interaction.member && 'roles' in interaction.member && 'guild' in interaction.member) {
+        return interaction.member;
+    }
+    if (interaction.guild) {
+        const cached = interaction.guild.members.cache.get(interaction.user.id);
+        if (cached)
+            return cached;
+        const fetched = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (fetched)
+            return fetched;
+    }
+    throw new AppError('NOT_FOUND', 'Could not locate server member profile.');
+}
 const POSITIONS = ['LW', 'C', 'RW', 'LD', 'RD', 'G'];
 export async function handleWeekButton(interaction, context, parsed) {
     if (!interaction.guildId)
@@ -202,7 +216,7 @@ export async function handleEcuPosSelect(interaction, context, parsed) {
 export async function handleLineupButton(interaction, context, parsed) {
     if (!interaction.guildId || !interaction.guild)
         throw new AppError('NOT_ALLOWED', 'Use this inside the server.');
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const member = await fetchOrGetMember(interaction);
     const config = await context.config.get(interaction.guildId);
     const isMgmt = hasManagementAccess(accessLevel(member, config));
     if (!isMgmt) {
@@ -315,9 +329,6 @@ export async function handleLineupButton(interaction, context, parsed) {
         }
         if (!week)
             throw new AppError('NOT_FOUND', 'Week not found.');
-        await syncLineupDashboard(interaction.guildId, week, context, interaction.client);
-        await syncAvailabilityPost(interaction.guildId, week, context, interaction.client);
-        await Promise.allSettled(week.games.map((g) => syncSingleGamePost(interaction.guildId, g.id, context, interaction.client)));
         const summary = await context.schedule.getWeekSchedulingSummary(interaction.guildId, week.id);
         const payload = renderLineupDashboard(week, summary);
         await interaction.editReply({
@@ -325,6 +336,9 @@ export async function handleLineupButton(interaction, context, parsed) {
             embeds: payload.embeds,
             components: payload.components,
         });
+        syncLineupDashboard(interaction.guildId, week, context, interaction.client).catch(() => null);
+        syncAvailabilityPost(interaction.guildId, week, context, interaction.client).catch(() => null);
+        Promise.allSettled(week.games.map((g) => syncSingleGamePost(interaction.guildId, g.id, context, interaction.client))).catch(() => null);
         return;
     }
     // Find ECU
@@ -609,7 +623,8 @@ export async function handleLineupUserSelect(interaction, context, parsed) {
     await requireManagement(interaction, context);
     const position = parsed.value;
     const targetUserId = interaction.values[0];
-    const member = await interaction.guild.members.fetch(targetUserId);
+    const member = interaction.guild.members.cache.get(targetUserId) ??
+        (await interaction.guild.members.fetch(targetUserId));
     const player = await context.players.byDiscordId(interaction.guildId, member.user.id, member.displayName ?? member.user.username, member.user.displayAvatarURL());
     if (player.teamStatus !== 'ROSTER') {
         await context.prisma.player.update({
@@ -694,7 +709,7 @@ export async function handleGameButton(interaction, context, parsed) {
         });
         return;
     }
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const member = await fetchOrGetMember(interaction);
     const config = await context.config.get(interaction.guildId);
     const isMgmt = hasManagementAccess(accessLevel(member, config));
     if (!isMgmt) {
@@ -745,7 +760,7 @@ export async function handleGameAvailButton(interaction, context, parsed) {
     if (!hasRole) {
         throw new AppError('NOT_ALLOWED', `Only players with the team role (<@&${config?.rosterRoleId ?? DEFAULT_ROSTER_ROLE_ID}>) can submit availability.`);
     }
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const member = await fetchOrGetMember(interaction);
     const player = await context.players.byDiscordId(interaction.guildId, member.user.id, member.displayName ?? member.user.username, member.user.displayAvatarURL());
     const resolvedStatus = resolveMemberTeamStatus(member, config);
     if (player.teamStatus !== resolvedStatus || !player.registered) {
@@ -812,7 +827,7 @@ export async function handleGameDayAvailButton(interaction, context, parsed) {
     if (!hasRole) {
         throw new AppError('NOT_ALLOWED', `Only players with the team role (<@&${config?.rosterRoleId ?? DEFAULT_ROSTER_ROLE_ID}>) can submit availability.`);
     }
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const member = await fetchOrGetMember(interaction);
     const player = await context.players.byDiscordId(interaction.guildId, member.user.id, member.displayName ?? member.user.username, member.user.displayAvatarURL());
     const resolvedStatus = resolveMemberTeamStatus(member, config);
     if (player.teamStatus !== resolvedStatus || !player.registered) {

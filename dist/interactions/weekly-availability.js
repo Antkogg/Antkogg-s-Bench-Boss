@@ -99,13 +99,13 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
             weekId: week.id,
             gameIds,
         });
-        await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
         await interaction.editReply({
             embeds: [
                 renderSuccess('Availability Saved!', `🟢 Marked you **AVAILABLE** for all **${week.games.length}** games this week!\n` +
-                    `The team availability board and all individual game cards have been updated.`),
+                    `The team availability board and all individual game cards are updating.`),
             ],
         });
+        syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client).catch((err) => console.error('Failed to sync all week posts in background:', err));
         return;
     }
     // 2. Unavailable for ALL (1 Click)
@@ -117,13 +117,13 @@ export async function handleWeeklyAvailabilityButton(interaction, context, parse
             weekId: week.id,
             gameIds: [],
         });
-        await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
         await interaction.editReply({
             embeds: [
                 renderSuccess('Availability Saved', `🔴 Marked you **OUT** for all games this week.\n` +
-                    `The team availability board and all individual game cards have been updated.`),
+                    `The team availability board and all individual game cards are updating.`),
             ],
         });
+        syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client).catch((err) => console.error('Failed to sync all week posts in background:', err));
         return;
     }
     // 3. My Schedule (Privately view player's weekly schedule)
@@ -275,12 +275,12 @@ export async function handleWeeklyAvailabilitySelect(interaction, context, parse
         weekId: parsed.entityId,
         gameIds: selectedGameIds,
     });
-    await syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client);
     await interaction.editReply({
         embeds: [
             renderSuccess('Availability Saved!', `✅ Updated your availability: **${selectedGameIds.length} of ${week.games.length}** games selected as AVAILABLE.\n` +
-                `The team availability board and all individual game cards have been updated.`),
+                `The team availability board and all individual game cards are updating.`),
         ],
     });
+    syncAllWeekPosts(interaction.guildId, week.id, context, interaction.client).catch((err) => console.error('Failed to sync all week posts in background:', err));
 }
 //# sourceMappingURL=weekly-availability.js.map
